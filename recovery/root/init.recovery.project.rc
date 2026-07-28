@@ -1,0 +1,21 @@
+on early-init
+    mkdir /metadata 0771 system system
+    mkdir /mnt/vendor 0755 root system
+    mkdir /mnt/vendor/persist 0771 root system
+    mkdir /mnt/vendor/nvdata 0771 root system
+    mkdir /mnt/vendor/nvcfg 0771 root system
+    mkdir /mnt/vendor/protect_f 0771 root system
+    mkdir /mnt/vendor/protect_s 0771 root system
+    mkdir /mnt/vendor/mi_ext 0755 root system
+
+on init
+    setprop ro.hardware mt6899
+    setprop ro.board.platform mt6899
+    setprop ro.boot.dynamic_partitions true
+    setprop ro.build.ab_update true
+    setprop ro.virtual_ab.enabled true
+    setprop ro.virtual_ab.userspace.snapshots.enabled true
+    setprop ro.recovery.usb.vid 18D1
+    setprop ro.recovery.usb.adb.pid D001
+    setprop ro.recovery.usb.fastboot.pid 4EE0
+

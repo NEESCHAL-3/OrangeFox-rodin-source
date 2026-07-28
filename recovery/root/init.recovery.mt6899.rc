@@ -1,0 +1,67 @@
+import /init.recovery.keymint.rc
+
+service rodin-touch-loader /system/bin/load-touch-modules.sh
+    disabled
+    oneshot
+    user root
+    group root input system
+    seclabel u:r:recovery:s0
+
+service rodin-touchfeature /system/bin/vendor.xiaomi.hw.touchfeature-service-recovery
+    disabled
+    user root
+    group root input system
+    setenv LD_LIBRARY_PATH /system/lib64/rodin-touch:/system/lib64:/vendor/lib64:/odm/lib64
+    seclabel u:r:recovery:s0
+
+service rodin-touch-wait /system/bin/wait-touch-service.sh
+    disabled
+    oneshot
+    user root
+    group root input system
+    seclabel u:r:recovery:s0
+
+service rodin-haptics-loader /system/bin/load-haptics-module.sh
+    disabled
+    oneshot
+    user root
+    group root input system
+    seclabel u:r:recovery:s0
+
+on early-init
+    write /sys/fs/selinux/enforce 0
+    setprop vendor.haptics.ready 0
+    mkdir /vendor/odm 0755 root root
+    mkdir /vendor/odm/lib64 0755 root root
+    mkdir /vendor/odm/firmware 0755 root root
+    symlink /system/lib64/rodin-touch/libtouchreport.so /vendor/odm/lib64/libtouchreport.so
+    symlink /system/lib64/rodin-touch/libtouchreport_alg_goodix.so /vendor/odm/lib64/libtouchreport_alg_goodix.so
+    symlink /system/lib64/rodin-touch/libtouchreport_alg_fts.so /vendor/odm/lib64/libtouchreport_alg_fts.so
+    symlink /system/lib64/rodin-touch/libtouchreport_hal.so /vendor/odm/lib64/libtouchreport_hal.so
+    symlink /system/lib64/rodin-touch/libtouchreport_sensor.so /vendor/odm/lib64/libtouchreport_sensor.so
+    symlink /system/lib64/rodin-touch/libtensorflowlite_touch_c.so /vendor/odm/lib64/libtensorflowlite_touch_c.so
+    symlink /system/etc/rodin-touch/rodin_gtp_thp_config.ini /vendor/odm/firmware/rodin_gtp_thp_config.ini
+    symlink /system/etc/rodin-touch/rodin_gtp_thp_config_vendor.ini /vendor/odm/firmware/rodin_gtp_thp_config_vendor.ini
+    symlink /system/etc/rodin-touch/rodin_fts_thp_config.ini /vendor/odm/firmware/rodin_fts_thp_config.ini
+
+on init
+    setprop sys.usb.ffs.aio_compat 1
+    setprop sys.usb.configfs 1
+    setprop sys.usb.controller "11201000.usb0"
+
+# Complete touch initialization before the boot trigger starts recovery. The
+# module loader is idempotent because first-stage init normally loaded these
+# modules from modules.load.recovery already.
+on early-boot
+    exec_start rodin-touch-loader
+    start rodin-touchfeature
+    exec_start rodin-touch-wait
+
+# Keep the SIH6887 driver out of first-stage initialization. Loading it only
+# after the touch stack is ready avoids competing with the panel/touch probe.
+on property:vendor.touch.service.ready=1
+    start rodin-haptics-loader
+
+on boot
+    start boot-hal-1-2
+    start health-hal-2-1

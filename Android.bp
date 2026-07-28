@@ -1,0 +1,53 @@
+cc_library_shared {
+    name: "librodin_libcxx_compat",
+    srcs: ["libcxx_compat/libcxx_compat.cpp"],
+    compile_multilib: "64",
+    recovery_available: true,
+    stl: "none",
+    shared_libs: ["liblog"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+}
+
+cc_prebuilt_library_shared {
+    name: "rodin_android.hardware.secure_element-V1-ndk",
+    srcs: ["proprietary/vendor/lib64/android.hardware.secure_element-V1-ndk.so"],
+    compile_multilib: "64",
+    recovery_available: true,
+    check_elf_files: false,
+    stl: "none",
+}
+
+cc_prebuilt_library_shared {
+    name: "rodin_android.se.omapi-V1-ndk",
+    srcs: ["proprietary/vendor/lib64/android.se.omapi-V1-ndk.so"],
+    compile_multilib: "64",
+    recovery_available: true,
+    check_elf_files: false,
+    stl: "none",
+}
+
+cc_binary {
+    name: "rodin_omapi_bridge",
+    recovery: true,
+    srcs: ["omapi_bridge/omapi_bridge.cpp"],
+    generated_headers: [
+        "android.hardware.secure_element-V1-ndk-source",
+        "android.se.omapi-V1-ndk-source",
+    ],
+    shared_libs: [
+        "rodin_android.hardware.secure_element-V1-ndk",
+        "rodin_android.se.omapi-V1-ndk",
+        "librodin_libcxx_compat",
+        "libbase",
+        "libbinder_ndk",
+        "liblog",
+    ],
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+}

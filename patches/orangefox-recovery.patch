@@ -1,0 +1,642 @@
+diff --git a/gui/gui.cpp b/gui/gui.cpp
+index 71bbc967..4291f2aa 100644
+--- a/gui/gui.cpp
++++ b/gui/gui.cpp
+@@ -122,6 +122,7 @@ public:
+ 		key_repeat_ms = 100;
+ 		touch_status = TS_NONE;
+ 		key_status = KS_NONE;
++		key_chord_status = KC_NONE;
+ 		state = AS_NO_ACTION;
+ 		x = y = 0;
+ 
+@@ -161,12 +162,19 @@ private:
+ 		KS_KEY_REPEAT = 2,
+ 	};
+ 
++	enum key_chord_status_enum {
++		KC_NONE = 0,
++		KC_SCREENSHOT,
++		KC_FLASHLIGHT,
++	};
++
+ 	enum action_state_enum {
+ 		AS_IN_ACTION_AREA = 0, // we've touched a spot with an action
+ 		AS_NO_ACTION = 1,    // we've touched in an empty area (no action) and ignore remaining events until touch release
+ 	};
+ 	touch_status_enum touch_status;
+ 	key_status_enum key_status;
++	key_chord_status_enum key_chord_status;
+ 	action_state_enum state;
+ 	int x, y; // x and y coordinates of last touch
+ 	struct timeval touchStart; // used to track time for long press / key repeat
+@@ -175,12 +183,38 @@ private:
+ 	void process_EV_REL(input_event& ev);
+ 	void process_EV_ABS(input_event& ev);
+ 	void process_EV_KEY(input_event& ev);
++	bool processKeyChord(HardwareKeyboard* kb);
+ 
+ 	void doTouchStart();
+ };
+ 
+ InputHandler input_handler;
+ 
++bool InputHandler::processKeyChord(HardwareKeyboard* kb)
++{
++	if (key_chord_status != KC_NONE)
++		return false;
++
++	if (kb->AreKeysPressed(KEY_VOLUMEUP, KEY_POWER)) {
++		GUIAction::flashlightImpl("");
++		key_chord_status = KC_FLASHLIGHT;
++	} else if (kb->AreKeysPressed(KEY_VOLUMEDOWN, KEY_POWER)) {
++		GUIAction::screenshotImpl("");
++		key_chord_status = KC_SCREENSHOT;
++	} else {
++		return false;
++	}
++
++	DataManager::Vibrate("tw_button_vibrate");
++	g_suppress_power_toggle_until_ms = nowMs() + 1000;
++	key_status = KS_KEY_REPEAT;
++	mime = 0;
++	// Screenshot rendering can take longer than the power-key hold threshold.
++	// Start repeat timing after the chord action so it cannot become hkey=power.
++	gettimeofday(&touchStart, NULL);
++	return true;
++}
++
+ 
+ bool InputHandler::processInput(int timeout_ms)
+ {
+@@ -287,14 +321,7 @@ void InputHandler::processHoldAndRepeat()
+ 		gettimeofday(&touchStart, NULL);
+ 		key_status = KS_KEY_REPEAT;
+ 
+-		if (kb->AreKeysPressed(KEY_VOLUMEUP, KEY_POWER)) {
+-			GUIAction::flashlightImpl("");
+-			DataManager::Vibrate("tw_button_vibrate");
+-		} else if (kb->AreKeysPressed(KEY_VOLUMEDOWN, KEY_POWER)) {
+-			GUIAction::screenshotImpl("");
+-			DataManager::Vibrate("tw_button_vibrate");
+-			g_suppress_power_toggle_until_ms = nowMs() + 1000; // prevent screen-off from power key after screenshot
+-		} else if (kb->IsKeyDown(KEY_POWER) && DataManager::GetStrValue("of_hw_control_mode") == "1") {
++		if (kb->IsKeyDown(KEY_POWER) && DataManager::GetStrValue("of_hw_control_mode") == "1") {
+ 			PageManager::SelectFocusedElement(true);
+ 		} else {
+ 			kb->KeyRepeat();
+@@ -313,7 +340,10 @@ void InputHandler::processHoldAndRepeat()
+ 		LOGEVENT("KEY_REPEAT: %d,%d\n", x, y);
+ 		gettimeofday(&touchStart, NULL);
+ 		mime = mtime;
+-		kb->KeyRepeat();
++		if (key_chord_status == KC_NONE)
++			kb->KeyRepeat();
++		else
++			mime = 0;
+ 	}
+ }
+ 
+@@ -424,8 +454,14 @@ void InputHandler::process_EV_KEY(input_event& ev)
+ 			key_status = KS_NONE;
+ 			touch_status = TS_NONE;
+ 		}
++		processKeyChord(kb);
+ 	} else {
+ 		// This is a key release
++		bool chord_key_release =
++			(key_chord_status == KC_SCREENSHOT &&
++			 (ev.code == KEY_VOLUMEDOWN || ev.code == KEY_POWER)) ||
++			(key_chord_status == KC_FLASHLIGHT &&
++			 (ev.code == KEY_VOLUMEUP || ev.code == KEY_POWER));
+ 		if (DataManager::GetStrValue("of_hw_control_mode") == "1") {
+ 			if (!blankTimer.isScreenOff()) {
+ 				if (ev.code == KEY_VOLUMEUP && key_status != KS_KEY_REPEAT) {
+@@ -438,7 +474,8 @@ void InputHandler::process_EV_KEY(input_event& ev)
+ 				}
+ 				if (ev.code == KEY_POWER && key_status != KS_KEY_REPEAT) {
+ 					LOGEVENT("POWER Key Released\n");
+-					PageManager::SelectFocusedElement(false);
++					if (!chord_key_release)
++						PageManager::SelectFocusedElement(false);
+ 				}
+ 			} else {
+ 				blankTimer.toggleBlank();
+@@ -447,15 +484,21 @@ void InputHandler::process_EV_KEY(input_event& ev)
+ 			if (ev.code == KEY_POWER && key_status != KS_KEY_REPEAT) {
+ 				LOGEVENT("POWER Key Released\n");
+ 				long long now = nowMs();
+-				if (now < g_suppress_power_toggle_until_ms) {
+-					LOGEVENT("Skipping POWER toggle due to recent screenshot\n");
++				if (chord_key_release || now < g_suppress_power_toggle_until_ms) {
++					LOGEVENT("Skipping POWER toggle due to hardware key chord\n");
+ 				} else {
+ 					blankTimer.toggleBlank();
+ 				}
+ 			}
+ 		}
+-		if (mime <= 500)
++		if (chord_key_release || mime <= 500)
+ 			kb->KeyUp(ev.code);
++		if (key_chord_status == KC_SCREENSHOT &&
++			!kb->IsKeyDown(KEY_VOLUMEDOWN) && !kb->IsKeyDown(KEY_POWER))
++			key_chord_status = KC_NONE;
++		else if (key_chord_status == KC_FLASHLIGHT &&
++			!kb->IsKeyDown(KEY_VOLUMEUP) && !kb->IsKeyDown(KEY_POWER))
++			key_chord_status = KC_NONE;
+ 		key_status = KS_NONE;
+ 		touch_status = TS_NONE;
+ #ifdef TW_USE_KEY_CODE_TOUCH_SYNC
+diff --git a/gui/theme/common/languages/ja_JP.xml b/gui/theme/common/languages/ja_JP.xml
+index 40d7d6e6..fc62815f 100644
+--- a/gui/theme/common/languages/ja_JP.xml
++++ b/gui/theme/common/languages/ja_JP.xml
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="UTF-8"?>
+ <language>
+-	<display>英語</display>
++	<display>日本語</display>
+ 
+ 	<resources>
+ 		<!-- Font overrides - only change these if your language requires special characters -->
+diff --git a/gui/theme/extra-languages/languages/zh_CN.xml b/gui/theme/extra-languages/languages/zh_CN.xml
+index cd4100f4..d1aca5b5 100644
+--- a/gui/theme/extra-languages/languages/zh_CN.xml
++++ b/gui/theme/extra-languages/languages/zh_CN.xml
+@@ -885,7 +885,7 @@
+ 		<string name="theme_engine_update">是否应用更改并重新加载?</string>
+ 		<string name="theme_engine_reset">重置主题并重新加载吗？</string>
+ 		<string name="apply_btn">应用</string>
+-		<string name="theme_hdr">自定义主题版本与 OrangeFox 版本不匹配。</string>
++		<string name="theme_hdr">主题</string>
+ 		
+ 		<string name="font_small">小</string>
+ 		<string name="font_norm">标准</string>
+diff --git a/gui/theme/portrait_hdpi/pages/customization.xml b/gui/theme/portrait_hdpi/pages/customization.xml
+index 3d5cc9b3..fed8df35 100644
+--- a/gui/theme/portrait_hdpi/pages/customization.xml
++++ b/gui/theme/portrait_hdpi/pages/customization.xml
+@@ -818,51 +818,9 @@
+ 			
+ 			<listbox>
+ 				<placement x="0" y="%row2_1_y%" w="%screen_w%" h="%lb_l1%"/>
+-				<font resource="font1" spacing="%fileselector_spacing%" color="%text%" />
++				<font resource="font8" spacing="%fileselector_spacing%" color="%text%" />
+ 				<data name="theme_font_tmp"/>
+-				<listitem name="Roboto">Roboto</listitem>
+-			</listbox>
+-			
+-			<listbox>
+-				<placement x="0" y="%row2_2a_y%" w="%screen_w%" h="%lb_l1%"/>
+-				<font resource="font2" spacing="%fileselector_spacing%" color="%text%" />
+-				<data name="theme_font_tmp"/>
+-				<listitem name="Roboto Slab">RobotoSlab</listitem>
+-			</listbox>
+-			
+-			<listbox>
+-				<placement x="0" y="%row3_1_y%" w="%screen_w%" h="%lb_l1%"/>
+-				<font resource="font3" spacing="%fileselector_spacing%" color="%text%" />
+-				<data name="theme_font_tmp"/>
+-				<listitem name="Google Sans">GoogleSans</listitem>
+-			</listbox>
+-			
+-			<listbox>
+-				<placement x="0" y="%row3_2a_y%" w="%screen_w%" h="%lb_l1%"/>
+-				<font resource="font4" spacing="%fileselector_spacing%" color="%text%" />
+-				<data name="theme_font_tmp"/>
+-				<listitem name="Euclid Flex">EuclidFlex</listitem>
+-			</listbox>
+-			
+-			<listbox>
+-				<placement x="0" y="%row4_1_y%" w="%screen_w%" h="%lb_l1%"/>
+-				<font resource="font5" spacing="%fileselector_spacing%" color="%text%" />
+-				<data name="theme_font_tmp"/>
+-				<listitem name="Fira Code">FiraCode</listitem>
+-			</listbox>
+-			
+-			<listbox>
+-				<placement x="0" y="%row4_2a_y%" w="%screen_w%" h="%lb_l1%"/>
+-				<font resource="font6" spacing="%fileselector_spacing%" color="%text%" />
+-				<data name="theme_font_tmp"/>
+-				<listitem name="Exo 2">Exo2</listitem>
+-			</listbox>
+-			
+-			<listbox>
+-				<placement x="0" y="%row5_1_y%" w="%screen_w%" h="%lb_l1%"/>
+-				<font resource="font7" spacing="%fileselector_spacing%" color="%text%" />
+-				<data name="theme_font_tmp"/>
+-				<listitem name="Inter Display">InterDisplay</listitem>
++				<listitem name="MiSans">MiSans</listitem>
+ 			</listbox>
+ 			
+ 			<action>
+@@ -928,51 +886,9 @@
+ 			
+ 			<listbox>
+ 				<placement x="0" y="%row2_1_y%" w="%screen_w%" h="%lb_l1%"/>
+-				<font resource="font1" spacing="%fileselector_spacing%" color="%text%" />
+-				<data name="theme_sec_font_tmp"/>
+-				<listitem name="Roboto">Roboto</listitem>
+-			</listbox>
+-			
+-			<listbox>
+-				<placement x="0" y="%row2_2a_y%" w="%screen_w%" h="%lb_l1%"/>
+-				<font resource="font2" spacing="%fileselector_spacing%" color="%text%" />
+-				<data name="theme_sec_font_tmp"/>
+-				<listitem name="Roboto Slab">RobotoSlab</listitem>
+-			</listbox>
+-			
+-			<listbox>
+-				<placement x="0" y="%row3_1_y%" w="%screen_w%" h="%lb_l1%"/>
+-				<font resource="font3" spacing="%fileselector_spacing%" color="%text%" />
+-				<data name="theme_sec_font_tmp"/>
+-				<listitem name="Google Sans">GoogleSans</listitem>
+-			</listbox>
+-			
+-			<listbox>
+-				<placement x="0" y="%row3_2a_y%" w="%screen_w%" h="%lb_l1%"/>
+-				<font resource="font4" spacing="%fileselector_spacing%" color="%text%" />
+-				<data name="theme_sec_font_tmp"/>
+-				<listitem name="Euclid Flex">EuclidFlex</listitem>
+-			</listbox>
+-			
+-			<listbox>
+-				<placement x="0" y="%row4_1_y%" w="%screen_w%" h="%lb_l1%"/>
+-				<font resource="font5" spacing="%fileselector_spacing%" color="%text%" />
+-				<data name="theme_sec_font_tmp"/>
+-				<listitem name="Fira Code">FiraCode</listitem>
+-			</listbox>
+-			
+-			<listbox>
+-				<placement x="0" y="%row4_2a_y%" w="%screen_w%" h="%lb_l1%"/>
+-				<font resource="font6" spacing="%fileselector_spacing%" color="%text%" />
+-				<data name="theme_sec_font_tmp"/>
+-				<listitem name="Exo 2">Exo2</listitem>
+-			</listbox>
+-			
+-			<listbox>
+-				<placement x="0" y="%row5_1_y%" w="%screen_w%" h="%lb_l1%"/>
+-				<font resource="font7" spacing="%fileselector_spacing%" color="%text%" />
++				<font resource="font8" spacing="%fileselector_spacing%" color="%text%" />
+ 				<data name="theme_sec_font_tmp"/>
+-				<listitem name="Inter Display">InterDisplay</listitem>
++				<listitem name="MiSans">MiSans</listitem>
+ 			</listbox>
+ 			
+ 			<action>
+@@ -1888,7 +1804,7 @@
+ 			<action>
+ 				<action function="ftls">
+ 					#Remove theme
+-					if [[ '%remove_theme%' = '1' ]] || [[ '%theme_style_tmp%' = 'Cream' &amp;&amp; '%theme_accent_tmp%' = 'Orange' &amp;&amp; '%theme_font_tmp%' = 'Roboto' &amp;&amp; '%theme_sec_font_tmp%' = 'GoogleSans' &amp;&amp; '%theme_font_size_tmp%' = 'n' ]]; then
++					if [[ '%remove_theme%' = '1' ]] || [[ '%theme_style_tmp%' = 'Cream' &amp;&amp; '%theme_accent_tmp%' = 'Orange' &amp;&amp; '%theme_font_tmp%' = 'MiSans' &amp;&amp; '%theme_sec_font_tmp%' = 'MiSans' &amp;&amp; '%theme_font_size_tmp%' = 'n' ]]; then
+ 						[ -d "%fox_theme_path%" ] &amp;&amp; rm -rf %fox_theme_path%;
+ 						[[ '%update_navbar%' = '1' ]] || exit;
+ 					else
+diff --git a/gui/theme/portrait_hdpi/resources/images.xml b/gui/theme/portrait_hdpi/resources/images.xml
+index 1d8dec09..cf763f95 100644
+--- a/gui/theme/portrait_hdpi/resources/images.xml
++++ b/gui/theme/portrait_hdpi/resources/images.xml
+@@ -55,6 +55,7 @@
+ 		<font name="font5" filename="FiraCode-Regular.ttf" size="42"/>
+ 		<font name="font6" filename="Exo2-Regular.ttf" size="42"/>
+ 		<font name="font7" filename="InterDisplay-Regular.ttf" size="42"/>
++		<font name="font8" filename="MiSans.ttf" size="42"/>
+ 		
+ 		<font name="orangefont" filename="InterDisplay-Regular.ttf" size="42"/>
+ 		<font name="about" filename="InterDisplay-Medium.ttf" size="58"/>
+diff --git a/gui/theme/portrait_hdpi/themes/font.xml b/gui/theme/portrait_hdpi/themes/font.xml
+index eb9ca2bf..f877c986 100644
+--- a/gui/theme/portrait_hdpi/themes/font.xml
++++ b/gui/theme/portrait_hdpi/themes/font.xml
+@@ -34,9 +34,9 @@
+ 	</resources>
+ 	
+ 	<variables>
+-		<variable name="theme_font" value="InterDisplay"/>
+-		<variable name="theme_sec_font" value="InterDisplay"/>
++		<variable name="theme_font" value="MiSans"/>
++		<variable name="theme_sec_font" value="MiSans"/>
+ 		<variable name="theme_font_size" value="n"/>
+ 		<variable name="theme_font_weight" value="2"/>
+ 	</variables>
+-</recovery>
+\ No newline at end of file
++</recovery>
+diff --git a/minuitwrp/events.cpp b/minuitwrp/events.cpp
+index e497df62..1760c153 100644
+--- a/minuitwrp/events.cpp
++++ b/minuitwrp/events.cpp
+@@ -64,6 +64,12 @@ static std::atomic_int vib_on_count = 0;
+ #define LEDS_HAPTICS_DURATION_FILE	"/sys/class/leds/vibrator/duration"
+ #define LEDS_HAPTICS_ACTIVATE_FILE	"/sys/class/leds/vibrator/activate"
+ 
++// rodin's SIH6887 driver exposes haptics directly on its I2C device.
++#define SIH_HAPTICS_DURATION_FILE \
++    "/sys/bus/i2c/drivers/sih_haptic_688X/0-006b/duration"
++#define SIH_HAPTICS_ACTIVATE_FILE \
++    "/sys/bus/i2c/drivers/sih_haptic_688X/0-006b/activate"
++
+ #ifndef SYN_REPORT
+ #define SYN_REPORT          0x00
+ #endif
+@@ -185,8 +191,12 @@ int vibrate(int timeout_ms)
+     if (std::ifstream(LEDS_HAPTICS_ACTIVATE_FILE).good()) {
+         write_to_file(LEDS_HAPTICS_DURATION_FILE, tout);
+         write_to_file(LEDS_HAPTICS_ACTIVATE_FILE, "1");
+-    } else
++    } else if (std::ifstream(SIH_HAPTICS_ACTIVATE_FILE).good()) {
++        write_to_file(SIH_HAPTICS_DURATION_FILE, tout);
++        write_to_file(SIH_HAPTICS_ACTIVATE_FILE, "1");
++    } else {
+         write_to_file(VIBRATOR_TIMEOUT_FILE, tout);
++    }
+ #endif
+     return 0;
+ }
+diff --git a/minuitwrp/graphics.cpp b/minuitwrp/graphics.cpp
+index 8e22b640..97a85fd9 100644
+--- a/minuitwrp/graphics.cpp
++++ b/minuitwrp/graphics.cpp
+@@ -114,7 +114,9 @@ int gr_textEx_scaleW(int x, int y, const char *s, void* pFont, int max_width, in
+         else if (placement == BOTTOM_LEFT || placement == BOTTOM_RIGHT)
+             y -= measured_height;
+     }
+-    return twrpTruetype::gr_ttf_textExWH(gl, x, y + y_scale, s, vfont, measured_width + x, -1, gr_draw);
++	// gr_ttf_measureEx() has already cached the complete string with max_width
++	// -1. Reuse that surface instead of rendering and caching every label twice.
++	return twrpTruetype::gr_ttf_textExWH(gl, x, y + y_scale, s, vfont, -1, -1, gr_draw);
+ }
+ 
+ void gr_clip(int x, int y, int w, int h)
+diff --git a/minuitwrp/include/minuitwrp/truetype.hpp b/minuitwrp/include/minuitwrp/truetype.hpp
+index 72b7620a..f096a230 100755
+--- a/minuitwrp/include/minuitwrp/truetype.hpp
++++ b/minuitwrp/include/minuitwrp/truetype.hpp
+@@ -64,6 +64,7 @@ typedef struct {
+     int max_height;
+     int base;
+     FT_Face face;
++    FT_Face fallback_face;
+     std::map<int, TrueTypeCacheEntry*> glyph_cache;
+     std::map<StringCacheKey, StringCacheEntry*> string_cache;
+     pthread_mutex_t mutex;
+@@ -101,6 +102,7 @@ public:
+     static void gr_ttf_freeFont(void *font);
+     static TrueTypeCacheEntry* gr_ttf_glyph_cache_peek(TrueTypeFont *font, int char_index);
+     static TrueTypeCacheEntry* gr_ttf_glyph_cache_get(TrueTypeFont *font, int char_index);
++    static int gr_ttf_get_char_index(TrueTypeFont *font, unsigned int unicode);
+     static int gr_ttf_copy_glyph_to_surface(GGLSurface *dest, FT_BitmapGlyph glyph, int offX, int offY, int base);
+     static void gr_ttf_calcMaxFontHeight(TrueTypeFont *f);
+     static int gr_ttf_render_text(TrueTypeFont *font, GGLSurface *surface, const std::string text, int max_width);
+diff --git a/minuitwrp/truetype.cpp b/minuitwrp/truetype.cpp
+index d224fbb1..e15894cb 100644
+--- a/minuitwrp/truetype.cpp
++++ b/minuitwrp/truetype.cpp
+@@ -35,6 +35,9 @@ static FontData font_data = {
+ 	.mutex = PTHREAD_MUTEX_INITIALIZER
+ };
+ 
++static constexpr const char* kFallbackFontPath =
++	"/twres/fonts/MiSans.ttf";
++
+ twrpTruetype::twrpTruetype(void) {
+ 
+ }
+@@ -129,10 +132,25 @@ void* twrpTruetype::gr_ttf_loadFont(const char *filename, int size, int dpi) {
+ 	res->size = size;
+ 	res->dpi = dpi;
+ 	res->face = face;
++	res->fallback_face = nullptr;
+ 	res->max_height = -1;
+ 	res->base = -1;
+ 	res->refcount = 1;
+ 
++	if (access(kFallbackFontPath, R_OK) == 0 && fontFileName != kFallbackFontPath)
++	{
++		FT_Face fallback_face;
++		error = FT_New_Face(font_data.ft_library, kFallbackFontPath, 0, &fallback_face);
++		if (!error)
++		{
++			error = FT_Set_Char_Size(fallback_face, 0, size*16, dpi, dpi);
++			if (!error)
++				res->fallback_face = fallback_face;
++			else
++				FT_Done_Face(fallback_face);
++		}
++	}
++
+ 	pthread_mutex_init(&res->mutex, 0);
+ 
+ 	key = new TrueTypeFontKey;
+@@ -185,8 +203,11 @@ void twrpTruetype::gr_ttf_freeFont(void *font) {
+ 	TrueTypeFont *d = (TrueTypeFont *)font;
+ 	if(--d->refcount == 0)
+ 	{
++		TrueTypeFontMap::iterator trueTypeFontIt = font_data.fonts.find(*(d->key));
+ 		delete d->key;
+ 
++		if (d->fallback_face)
++			FT_Done_Face(d->fallback_face);
+ 		FT_Done_Face(d->face);
+ 
+ 		StringCacheMap::iterator stringCacheEntryIt = d->string_cache.begin();
+@@ -203,7 +224,6 @@ void twrpTruetype::gr_ttf_freeFont(void *font) {
+ 
+ 		pthread_mutex_destroy(&d->mutex);
+ 
+-		TrueTypeFontMap::iterator trueTypeFontIt = font_data.fonts.find(*(d->key));
+ 		delete d;
+ 		font_data.fonts.erase(trueTypeFontIt);
+ 
+@@ -221,23 +241,40 @@ TrueTypeCacheEntry* twrpTruetype::gr_ttf_glyph_cache_peek(TrueTypeFont *font, in
+ 	return nullptr;
+ }
+ 
++int twrpTruetype::gr_ttf_get_char_index(TrueTypeFont *font, unsigned int unicode) {
++	FT_UInt char_index = FT_Get_Char_Index(font->face, unicode);
++	if (char_index || !unicode || !font->fallback_face)
++		return static_cast<int>(char_index);
++
++	char_index = FT_Get_Char_Index(font->fallback_face, unicode);
++	return char_index ? -static_cast<int>(char_index) : 0;
++}
++
+ TrueTypeCacheEntry* twrpTruetype::gr_ttf_glyph_cache_get(TrueTypeFont *font, int char_index) {
+ 	TrueTypeCacheEntryMap::iterator glyphCacheItr = font->glyph_cache.find(char_index);
+ 	TrueTypeCacheEntry* res = nullptr;
+ 	if(glyphCacheItr == font->glyph_cache.end())
+ 	{
+-		int error = FT_Load_Glyph(font->face, char_index, FT_LOAD_RENDER);
++		FT_Face face = font->face;
++		int glyph_index = char_index;
++		if (char_index < 0 && font->fallback_face)
++		{
++			face = font->fallback_face;
++			glyph_index = -char_index;
++		}
++
++		int error = FT_Load_Glyph(face, glyph_index, FT_LOAD_RENDER);
+ 		if(error)
+ 		{
+-			fprintf(stderr, "Failed to load glyph idx %d: %d\n", char_index, error);
++			fprintf(stderr, "Failed to load glyph idx %d: %d\n", glyph_index, error);
+ 			return nullptr;
+ 		}
+ 
+ 		FT_BitmapGlyph glyph;
+-		error = FT_Get_Glyph(font->face->glyph, (FT_Glyph*)&glyph);
++		error = FT_Get_Glyph(face->glyph, (FT_Glyph*)&glyph);
+ 		if(error)
+ 		{
+-			fprintf(stderr, "Failed to copy glyph %d: %d\n", char_index, error);
++			fprintf(stderr, "Failed to copy glyph %d: %d\n", glyph_index, error);
+ 			return nullptr;
+ 		}
+ 
+@@ -319,6 +356,19 @@ void twrpTruetype::gr_ttf_calcMaxFontHeight(TrueTypeFont *f) {
+ 		}
+ 	}
+ 
++	// Include a representative CJK glyph in the line metrics when the active
++	// Latin font needs the recovery fallback face.
++	char_idx = gr_ttf_get_char_index(f, 0x4E2D);
++	if (char_idx < 0)
++	{
++		ent = gr_ttf_glyph_cache_get(f, char_idx);
++		if (ent)
++		{
++			bbox.yMin = MIN(bbox.yMin, ent->bbox.yMin);
++			bbox.yMax = MAX(bbox.yMax, ent->bbox.yMax);
++		}
++	}
++
+ 	if(bbox.yMin > bbox.yMax)
+ 		bbox.yMin = bbox.yMax = 0;
+ 
+@@ -354,14 +404,14 @@ int twrpTruetype::gr_ttf_render_text(TrueTypeFont *font, GGLSurface *surface, co
+ 		text_itr += utf_bytes;
+ 		bytes_rendered += utf_bytes;
+ 
+-		char_idx = FT_Get_Char_Index(f->face, unicode);
++		char_idx = gr_ttf_get_char_index(f, unicode);
+ 		char_idxs[char_idxs_len] = char_idx;
+ 		ent = gr_ttf_glyph_cache_get(f, char_idx);
+ 		if(ent)
+ 		{
+ 			diff = ent->glyph->root.advance.x >> 16;
+ 
+-			if(FT_HAS_KERNING(f->face) && prev_idx && char_idx)
++			if(FT_HAS_KERNING(f->face) && prev_idx > 0 && char_idx > 0)
+ 			{
+ 				FT_Get_Kerning(f->face, prev_idx, char_idx, FT_KERNING_DEFAULT, &delta);
+ 				diff += delta.x >> 6;
+@@ -401,7 +451,7 @@ int twrpTruetype::gr_ttf_render_text(TrueTypeFont *font, GGLSurface *surface, co
+ 	for(i = 0; i < char_idxs_len; ++i)
+ 	{
+ 		char_idx = char_idxs[i];
+-		if(FT_HAS_KERNING(f->face) && prev_idx && char_idx)
++		if(FT_HAS_KERNING(f->face) && prev_idx > 0 && char_idx > 0)
+ 		{
+ 			FT_Get_Kerning(f->face, prev_idx, char_idx, FT_KERNING_DEFAULT, &delta);
+ 			x += delta.x >> 6;
+@@ -438,13 +488,12 @@ StringCacheEntry* twrpTruetype::gr_ttf_string_cache_peek(TrueTypeFont *font,
+ }
+ 
+ void twrpTruetype::gr_ttf_string_cache_truncate(TrueTypeFont *font) {
+-	StringCacheMap::iterator stringCacheItr;
+-
+-	if (font->string_cache.size() == STRING_CACHE_MAX_ENTRIES) {
++	if (font->string_cache.size() >= STRING_CACHE_MAX_ENTRIES) {
+ 		StringCacheEntry *truncateEntry = nullptr;
+-		stringCacheItr = font->string_cache.begin();
++		StringCacheMap::iterator stringCacheItr = font->string_cache.begin();
+ 		int deleteCtr = 0;
+-		while (stringCacheItr != font->string_cache.end() || deleteCtr == (STRING_CACHE_MAX_ENTRIES - 1)) {
++		while (stringCacheItr != font->string_cache.end() &&
++			deleteCtr < STRING_CACHE_TRUNCATE_ENTRIES) {
+ 			truncateEntry = stringCacheItr->second;
+ 			gr_ttf_freeStringCache(truncateEntry->key, truncateEntry, nullptr);
+ 			stringCacheItr = font->string_cache.erase(stringCacheItr);
+@@ -464,6 +513,7 @@ StringCacheEntry* twrpTruetype::gr_ttf_string_cache_get(TrueTypeFont *font, cons
+ 
+ 	stringCacheItr = font->string_cache.find(k);
+ 	if (stringCacheItr == font->string_cache.end()) {
++		gr_ttf_string_cache_truncate(font);
+ 		res = new StringCacheEntry;
+ 		res->rendered_bytes = gr_ttf_render_text(font, &res->surface, text, max_width);
+ 		if(res->rendered_bytes < 0) {
+@@ -489,7 +539,6 @@ int twrpTruetype::gr_ttf_measureEx(const char *s, void *font) {
+ 	int res = -1;
+ 
+ 	pthread_mutex_lock(&f->mutex);
+-	gr_ttf_string_cache_truncate(f);
+ 	StringCacheEntry *e = gr_ttf_string_cache_get(f, s, -1);
+ 	if(e)
+ 		res = e->surface.width;
+@@ -521,8 +570,8 @@ int twrpTruetype::gr_ttf_maxExW(const char *s, void *font, int max_width) {
+ 		utf_bytes = utf8_to_unicode(s, &unicode);
+ 		s += utf_bytes;
+ 
+-		char_idx = FT_Get_Char_Index(f->face, unicode);
+-		if(FT_HAS_KERNING(f->face) && prev_idx && char_idx)
++		char_idx = gr_ttf_get_char_index(f, unicode);
++		if(FT_HAS_KERNING(f->face) && prev_idx > 0 && char_idx > 0)
+ 		{
+ 			FT_Get_Kerning(f->face, prev_idx, char_idx, FT_KERNING_DEFAULT, &delta);
+ 			total_w += delta.x >> 6;
+diff --git a/orangefox.mk b/orangefox.mk
+index 1f02b296..efb82ecd 100644
+--- a/orangefox.mk
++++ b/orangefox.mk
+@@ -697,6 +697,16 @@ ifeq ($(FOX_ALLOW_EARLY_SETTINGS_LOAD),1)
+     LOCAL_CFLAGS += -DFOX_ALLOW_EARLY_SETTINGS_LOAD='"1"'
+ endif
+ 
++# Some devices cannot safely destroy and recreate the complete GUI package
++# after FBE unlock. Their initial package and normal settings load stay intact.
++ifeq ($(OF_SKIP_POST_DECRYPT_THEME_RELOAD),1)
++    LOCAL_CFLAGS += -DOF_SKIP_POST_DECRYPT_THEME_RELOAD=1
++endif
++
++ifeq ($(OF_LOAD_DEFAULT_LANGUAGE_BEFORE_DECRYPT),1)
++    LOCAL_CFLAGS += -DOF_LOAD_DEFAULT_LANGUAGE_BEFORE_DECRYPT=1
++endif
++
+ # whether to wipe /metadata after formatting data
+ ifeq ($(OF_WIPE_METADATA_AFTER_DATAFORMAT),1)
+    ifeq ($(TW_INCLUDE_FBE_METADATA_DECRYPT),true)
+diff --git a/twrp.cpp b/twrp.cpp
+index c9fdc572..f74435d2 100644
+--- a/twrp.cpp
++++ b/twrp.cpp
+@@ -250,6 +250,12 @@ static void process_recovery_mode(twrpAdbBuFifo* adb_bu_fifo, bool skip_decrypti
+ 
+ #ifdef TW_INCLUDE_CRYPTO
+ 	android::keystore::copySqliteDb();
++#endif
++#ifdef OF_LOAD_DEFAULT_LANGUAGE_BEFORE_DECRYPT
++	// The decrypt page blocks before encrypted settings can be loaded. Apply the
++	// compiled default to the already-loaded GUI package before opening it.
++	PageManager::LoadLanguage(DataManager::GetStrValue("tw_language"));
++	GUIConsole::Translate_Now();
+ #endif
+ 	Decrypt_Page(skip_decryption, datamedia);
+ 
+@@ -403,10 +409,12 @@ static bool Fox_CheckReload_Themes() {
+   || TWFunc::Fox_Property_Get("orangefox.mount_to_decrypt") == "1") {
+ 	DataManager::SetValue(FOX_ENCRYPTED_DEVICE, "1");
+     }
+-#if defined(FOX_ALLOW_EARLY_SETTINGS_LOAD) && defined(FOX_SETTINGS_ROOT_DIRECTORY)
+-  return false;
+-#else
+-  return (TWFunc::Path_Exists(FOX_THEME_PATH) || TWFunc::Path_Exists(FOX_NAVBAR_PATH));
++	#if defined(OF_SKIP_POST_DECRYPT_THEME_RELOAD)
++	  return false;
++	#elif defined(FOX_ALLOW_EARLY_SETTINGS_LOAD) && defined(FOX_SETTINGS_ROOT_DIRECTORY)
++	  return false;
++	#else
++	  return (TWFunc::Path_Exists(FOX_THEME_PATH) || TWFunc::Path_Exists(FOX_NAVBAR_PATH));
+ #endif
+ }
+ 
