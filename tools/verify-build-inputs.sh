@@ -204,7 +204,7 @@ if [[ -d "${TOP_DIR}/bootable/recovery" ]]; then
         search_tree "$marker" "${TOP_DIR}/bootable/recovery" || \
             fail "OrangeFox source patch marker missing: $marker"
     done
-    for language in es_ES hu_HU ja_JP zh_CN zh_TW; do
+    for language in en; do
         check_file "${TOP_DIR}/bootable/recovery/gui/theme/common/languages/${language}.xml"
     done
 

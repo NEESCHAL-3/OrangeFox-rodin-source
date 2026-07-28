@@ -52,15 +52,15 @@ if [ -d "$ramdisk/twres/fonts" ]; then
         -delete
 fi
 
-# Keep the built-in languages that are actively maintained for this device.
+# Package English only in the final rodin recovery ramdisk.
 if [ -d "$ramdisk/twres/languages" ]; then
+    if [ ! -f "$ramdisk/twres/languages/en.xml" ]; then
+        echo "Missing required English language resource" >&2
+        exit 1
+    fi
+
     find "$ramdisk/twres/languages" -maxdepth 1 -type f \
         ! -name en.xml \
-        ! -name es_ES.xml \
-        ! -name hu_HU.xml \
-        ! -name ja_JP.xml \
-        ! -name zh_CN.xml \
-        ! -name zh_TW.xml \
         -delete
 fi
 

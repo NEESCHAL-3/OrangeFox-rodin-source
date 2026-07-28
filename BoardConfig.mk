@@ -135,7 +135,7 @@ TW_INCLUDE_LPDUMP := true
 TW_INCLUDE_REPACKTOOLS := true
 TW_INCLUDE_RESETPROP := true
 TW_INCLUDE_EROFS := true
-TW_DEFAULT_LANGUAGE := zh_CN
+TW_DEFAULT_LANGUAGE := en
 # The first decrypt page opens before encrypted Fox settings can be read.
 OF_LOAD_DEFAULT_LANGUAGE_BEFORE_DECRYPT := 1
 TW_HAS_MTP := true

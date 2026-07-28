@@ -32,23 +32,15 @@ apply_patch_once() {
 apply_patch_once "${BUILD_DIR}" "${BUILD_PATCH}" "OrangeFox build/make"
 apply_patch_once "${RECOVERY_DIR}" "${RECOVERY_PATCH}" "OrangeFox recovery"
 
-for language in es_ES hu_HU zh_CN zh_TW; do
-    source_file="${RECOVERY_DIR}/gui/theme/extra-languages/languages/${language}.xml"
-    target_file="${RECOVERY_DIR}/gui/theme/common/languages/${language}.xml"
-    if [[ ! -f "${source_file}" ]]; then
-        echo "Missing OrangeFox language source: ${source_file}" >&2
-        exit 1
-    fi
-    cp -fp "${source_file}" "${target_file}"
-done
+ENGLISH_LANGUAGE="${RECOVERY_DIR}/gui/theme/common/languages/en.xml"
+
+if [[ ! -f "${ENGLISH_LANGUAGE}" ]]; then
+    echo "Missing OrangeFox English language resource: ${ENGLISH_LANGUAGE}" >&2
+    exit 1
+fi
 
 if command -v xmllint >/dev/null 2>&1; then
-    xmllint --noout \
-        "${RECOVERY_DIR}/gui/theme/common/languages/es_ES.xml" \
-        "${RECOVERY_DIR}/gui/theme/common/languages/hu_HU.xml" \
-        "${RECOVERY_DIR}/gui/theme/common/languages/ja_JP.xml" \
-        "${RECOVERY_DIR}/gui/theme/common/languages/zh_CN.xml" \
-        "${RECOVERY_DIR}/gui/theme/common/languages/zh_TW.xml"
+    xmllint --noout "${ENGLISH_LANGUAGE}"
 fi
 
 "${DEVICE_DIR}/tools/verify-build-inputs.sh" "${TOP_DIR}"
