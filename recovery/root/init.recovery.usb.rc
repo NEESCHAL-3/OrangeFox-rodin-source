@@ -26,7 +26,7 @@
 #
 
 on early-init
-    setprop sys.usb.configfs 0
+    setprop sys.usb.configfs 1
 
 on fs
     mkdir /config
@@ -67,6 +67,7 @@ on property:ro.boot.usbcontroller=*
 on property:sys.usb.config=none && property:sys.usb.configfs=1
     write /config/usb_gadget/g1/UDC "none"
     stop adbd
+    stop fastbootd
     setprop sys.usb.ffs.ready 0
     setprop sys.usb.ffs.mtp.ready 0
     write /config/usb_gadget/g1/bDeviceClass 0
@@ -81,9 +82,11 @@ on property:init.svc.adbd=stopped
     setprop sys.usb.ffs.ready 0
 
 on property:sys.usb.config=adb && property:sys.usb.configfs=1
+    stop fastbootd
     start adbd
 
 on property:sys.usb.config=mtp,adb && property:sys.usb.configfs=1
+    stop fastbootd
     start adbd
 
 on property:sys.usb.ffs.ready=1 && property:sys.usb.config=adb && property:sys.usb.configfs=1
@@ -125,13 +128,35 @@ on property:sys.usb.ffs.ready=1 && property:sys.usb.config=mtp,adb && property:s
     write /config/usb_gadget/g1/UDC ${sys.usb.controller}
     setprop sys.usb.state ${sys.usb.config}
 
-on property:sys.usb.ffs.ready=1 && property:sys.usb.config=fastboot && property:sys.usb.configfs=1
-    write /config/usb_gadget/g1/configs/b.1/strings/0x409/configuration "fastboot"
+# Userspace fastboot: cleanly detach the active recovery gadget first.
+on property:sys.usb.config=fastboot && property:sys.usb.configfs=1
+    write /config/usb_gadget/g1/UDC "none"
+    stop adbd
     rm /config/usb_gadget/g1/configs/b.1/f1
     rm /config/usb_gadget/g1/configs/b.1/f2
     rm /config/usb_gadget/g1/configs/b.1/f3
+    setprop sys.usb.ffs.ready 0
+    setprop sys.usb.ffs.mtp.ready 0
+
+    # Fully re-arm the MTK mtu3 controller in peripheral mode.
+    write /sys/class/usb_role/11201000.usb0-role-switch/role none
+    write /sys/class/usb_role/11201000.usb0-role-switch/role device
+    wait /sys/class/udc/11201000.usb0 5
+
+    start fastbootd
+
+# Bind the fastboot FunctionFS endpoint only after fastbootd opens it.
+on property:sys.usb.ffs.ready=1 && property:sys.usb.config=fastboot && property:sys.usb.configfs=1
+    rm /config/usb_gadget/g1/configs/b.1/f1
+    rm /config/usb_gadget/g1/configs/b.1/f2
+    rm /config/usb_gadget/g1/configs/b.1/f3
+    write /config/usb_gadget/g1/bDeviceClass 0
+    write /config/usb_gadget/g1/bDeviceSubClass 0
+    write /config/usb_gadget/g1/bDeviceProtocol 0
     write /config/usb_gadget/g1/idVendor 0x18D1
-    write /config/usb_gadget/g1/idProduct 0xD00D
+    write /config/usb_gadget/g1/idProduct 0x4EE0
+    write /config/usb_gadget/g1/configs/b.1/strings/0x409/configuration "fastboot"
     symlink /config/usb_gadget/g1/functions/ffs.fastboot /config/usb_gadget/g1/configs/b.1/f1
+
     write /config/usb_gadget/g1/UDC ${sys.usb.controller}
-    setprop sys.usb.state ${sys.usb.config}
+    setprop sys.usb.state fastboot
