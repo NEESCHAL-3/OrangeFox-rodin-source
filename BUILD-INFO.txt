@@ -1,0 +1,17 @@
+OrangeFox Recovery for rodin
+Release: R12.0
+Channel: UNOFFICIAL STABLE
+Date: 2026-07-31
+Base Firmware: OS3.0.301.0.WOJINXM
+
+Image:
+OrangeFox-R12.0-Rodin-UNOFFICIAL-STABLE-20260731.img
+
+Size:
+67108864 bytes
+
+SHA-256:
+2c7cfc7416914cd6e3833eed461280514bae37d518dd4528c512c079547e1359
+
+Packed recovery binary SHA-256:
+883e1d0997315d66bdb8753a5f2f20d70339a67a55833c0b468d6fc340316372
