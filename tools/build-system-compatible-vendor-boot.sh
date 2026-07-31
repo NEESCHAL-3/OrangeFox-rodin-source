@@ -17,23 +17,36 @@ case "${FIRMWARE_VARIANT}" in
         STOCK_RAMDISK_SHA256="349cc6598f70ae401afe3071abed6de00815af39c5aded3551cff23364208731"
         DEFAULT_OUTPUT_IMAGE="${PRODUCT_OUT}/OrangeFox-R12.0-Unofficial-rodin-global-system-compatible.img"
         ;;
+    india)
+        STOCK_RAMDISK="${DEVICE_DIR}/prebuilt/india/vendor_ramdisk00"
+        STOCK_RAMDISK_SHA256="c1b5ad776c93f89c6bf227ffecbf21ff3338236833d424446b388bb9819587a6"
+        DEFAULT_OUTPUT_IMAGE="${PRODUCT_OUT}/OrangeFox-R12.0-NEESCHAL-rodin-india-system-compatible.img"
+        ;;
     *)
-        echo "unsupported RODIN_FIRMWARE_VARIANT: ${FIRMWARE_VARIANT} (expected cn or global)" >&2
+        echo "unsupported RODIN_FIRMWARE_VARIANT: ${FIRMWARE_VARIANT} (expected cn, global, or india)" >&2
         exit 1
         ;;
 esac
 
 OUTPUT_IMAGE="${2:-${DEFAULT_OUTPUT_IMAGE}}"
 STOCK_DTB="${DEVICE_DIR}/prebuilt/dtb/mt6899-rodin.dtb"
+RECOVERY_HOST_DTB_TOOL="${DEVICE_DIR}/tools/make-recovery-host-dtb.py"
 RECOVERY_LZ4="${PRODUCT_OUT}/obj/PACKAGING/vendor_ramdisk_fragments_intermediates/recovery.cpio.lz4"
 LZ4="${PRODUCT_OUT%/target/product/rodin}/host/linux-x86/bin/lz4"
 MKBOOTIMG="${PRODUCT_OUT%/target/product/rodin}/host/linux-x86/bin/mkbootimg"
 MKBOOTFS="${PRODUCT_OUT%/target/product/rodin}/host/linux-x86/bin/mkbootfs"
 AVBTOOL="${PRODUCT_OUT%/target/product/rodin}/host/linux-x86/bin/avbtool"
 
-for file in "$STOCK_RAMDISK" "$STOCK_DTB" "$RECOVERY_LZ4" "$LZ4" "$MKBOOTIMG" "$MKBOOTFS" "$AVBTOOL"; do
+for file in "$STOCK_RAMDISK" "$STOCK_DTB" "$RECOVERY_HOST_DTB_TOOL" "$RECOVERY_LZ4" "$LZ4" "$MKBOOTIMG" "$MKBOOTFS" "$AVBTOOL"; do
     if [ ! -f "$file" ]; then
         echo "missing required build input: $file" >&2
+        exit 1
+    fi
+done
+
+for command_name in python3 dtc fdtget fdtput; do
+    if ! command -v "$command_name" >/dev/null 2>&1; then
+        echo "missing required DTB command: $command_name" >&2
         exit 1
     fi
 done
@@ -63,6 +76,9 @@ platform_root="${work_dir}/platform-root"
 platform_pruned_cpio="${work_dir}/platform-pruned.cpio"
 platform_pruned_lz4="${work_dir}/platform-pruned.cpio.lz4"
 unsigned_image="${work_dir}/vendor_boot.img"
+recovery_host_dtb="${work_dir}/mt6899-rodin-recovery-host.dtb"
+
+python3 "$RECOVERY_HOST_DTB_TOOL" "$STOCK_DTB" "$recovery_host_dtb"
 
 "$LZ4" -d -f "$RECOVERY_LZ4" "$recovery_cpio" >/dev/null
 "$LZ4" -d -f "$STOCK_RAMDISK" "$platform_cpio" >/dev/null
@@ -143,7 +159,7 @@ if [ "$total_ramdisk_size" -ge 60000000 ]; then
 fi
 
 "$MKBOOTIMG" \
-    --dtb "$STOCK_DTB" \
+    --dtb "$recovery_host_dtb" \
     --base 0x3fff8000 \
     --pagesize 4096 \
     --vendor_cmdline "bootopt=64S3,32N2,64N2 erofs.reserved_pages=64" \

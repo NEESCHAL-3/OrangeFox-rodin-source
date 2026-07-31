@@ -151,5 +151,35 @@ if [ -d "$terminfo" ]; then
     trap - EXIT
 fi
 
-# These are build-debug manifests and are not consumed by recovery at runtime.
-rm -f "$ramdisk/ramdisk-files.txt" "$ramdisk/ramdisk-files.sha256sum"
+# OrangeFox's A/B recovery preservation code consumes these manifests at
+# runtime. Generate them only after all rodin pruning, file moves and UPX
+# compression have finished so the file list and hashes match the final
+# recovery ramdisk exactly.
+(
+    cd "$ramdisk"
+
+    rm -f ramdisk-files.txt ramdisk-files.sha256sum
+    : > ramdisk-files.txt
+    : > ramdisk-files.sha256sum
+
+    # Include directories, regular files and symlinks in the cpio input list.
+    # The two manifest files already exist, so they are included as well.
+    find . -print |
+        sed 's#^\./##' \
+        > ramdisk-files.txt
+
+    # Avoid a circular checksum for the checksum manifest itself.
+    # prop.default is intentionally excluded, matching the AOSP build rule.
+    find . -type f \
+        ! -path './ramdisk-files.sha256sum' \
+        ! -path './prop.default' \
+        ! -path './linkerconfig/ld.config.txt' \
+        -print0 |
+        sort -z |
+        xargs -0 sha256sum \
+        > ramdisk-files.sha256sum
+
+    echo "-- Generated OrangeFox runtime ramdisk manifests"
+    echo "   files: $(wc -l < ramdisk-files.txt)"
+    echo "   hashes: $(wc -l < ramdisk-files.sha256sum)"
+)

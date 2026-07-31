@@ -11,8 +11,8 @@ fail() {
 }
 
 case "${RODIN_FIRMWARE_VARIANT:-cn}" in
-    cn|global) ;;
-    *) fail "unsupported RODIN_FIRMWARE_VARIANT: ${RODIN_FIRMWARE_VARIANT} (expected cn or global)" ;;
+    cn|global|india) ;;
+    *) fail "unsupported RODIN_FIRMWARE_VARIANT: ${RODIN_FIRMWARE_VARIANT} (expected cn, global, or india)" ;;
 esac
 
 for command_name in bash cut file git grep python3 sed sha256sum sort stat; do
@@ -78,7 +78,7 @@ check_file "${DEVICE_DIR}/manifests/device-blobs.sha256"
 check_file "${DEVICE_DIR}/manifests/orangefox-fox_14.1-pinned.xml"
 check_sha256 "${DEVICE_DIR}/patches/orangefox-build-make.patch" 5f2d3f43a4d78eee6d560a4a169df30fc95de6fa2ed294e3210e684a641a8329
 check_sha256 "${DEVICE_DIR}/patches/orangefox-recovery.patch" d36b4ef38558113296fe4353d8374f5b8f700d829531f2b7139b74c7f7fdcfd9
-check_sha256 "${DEVICE_DIR}/manifests/device-blobs.sha256" 74cbe0a479805e4a4e21191fe81526f67038dccea74bdd840e70114e9019a283
+check_sha256 "${DEVICE_DIR}/manifests/device-blobs.sha256" acdea2b37210f9184f3b826cb6a03e52a2246a589674c22b9261431b5c7de97b
 
 if [[ "${RODIN_ALLOW_UNPINNED_SOURCE:-0}" != "1" ]]; then
     if ! python3 "${DEVICE_DIR}/tools/verify-source-manifest.py" "${TOP_DIR}" \
@@ -103,6 +103,8 @@ check_sha256 "${DEVICE_DIR}/prebuilt/vendor_boot_stock.img" 499bb470719b790baf90
 check_sha256 "${DEVICE_DIR}/prebuilt/vendor_ramdisk00" 192977d50a121f7a5ddfab0212488ef0dbb0326cad802ce9d664649967a9845c
 check_size "${DEVICE_DIR}/prebuilt/global/vendor_ramdisk00" 29235080
 check_sha256 "${DEVICE_DIR}/prebuilt/global/vendor_ramdisk00" 349cc6598f70ae401afe3071abed6de00815af39c5aded3551cff23364208731
+check_size "${DEVICE_DIR}/prebuilt/india/vendor_ramdisk00" 29235084
+check_sha256 "${DEVICE_DIR}/prebuilt/india/vendor_ramdisk00" c1b5ad776c93f89c6bf227ffecbf21ff3338236833d424446b388bb9819587a6
 check_sha256 "${DEVICE_DIR}/recovery/root/lib/modules/scp.ko" ebae9554467e148256cfbab90f0b6d7943d2818ae0cf09bad8aec650bbd99310
 check_sha256 "${DEVICE_DIR}/recovery/root/lib/modules/goodix_core_rodin.ko" 3c2fe7db061743134b715e5a7c361690c3fa36cfacb9c15c1e0bb122e51ac966
 check_sha256 "${DEVICE_DIR}/recovery/root/lib/modules/focaltech_touch_rodin.ko" da967ce3f94ecc81153ee91f7e06a2b48eda0526b857688016ef660844bc70b2

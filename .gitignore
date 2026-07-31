@@ -18,3 +18,8 @@ images/*.sparse
 *.swo
 *~
 .DS_Store
+
+# Local development artifacts
+__pycache__/
+*.pyc
+tools/*.before-*

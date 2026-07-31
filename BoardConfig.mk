@@ -141,7 +141,6 @@ OF_LOAD_DEFAULT_LANGUAGE_BEFORE_DECRYPT := 1
 TW_HAS_MTP := true
 TW_MTP_DEVICE := /dev/mtp_usb
 TW_NO_USB_STORAGE := true
-TW_EXCLUDE_DEFAULT_USB_INIT := true
 TW_INPUT_BLACKLIST := "hbtp_vm"
 # Reloading the complete GUI after FBE unlock reproducibly SIGSEGVs on rodin.
 # The initial package remains active and settings are still loaded normally.
@@ -163,3 +162,4 @@ TW_RECOVERY_ADDITIONAL_RELINK_LIBRARY_FILES = \
 PRODUCT_SOONG_NAMESPACES += $(DEVICE_PATH)
 
 -include $(DEVICE_PATH)/fox_rodin.mk
+TW_EXCLUDE_DEFAULT_USB_INIT := true
