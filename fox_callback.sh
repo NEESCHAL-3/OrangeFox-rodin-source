@@ -151,6 +151,99 @@ if [ -d "$terminfo" ]; then
     trap - EXIT
 fi
 
+# Rodin safe ELF slimming pass.
+# Remove only non-runtime symbol/debug sections. Dynamic tables, exported
+# symbols, entry points and executable code must remain unchanged.
+(
+    top="${ANDROID_BUILD_TOP:-$(cd "$(dirname "$0")/../../.." && pwd)}"
+
+    llvm_strip="$(
+        find -L "$top/prebuilts/clang/host/linux-x86" \
+            -type f -name llvm-strip 2>/dev/null |
+        sort -V |
+        tail -n 1
+    )"
+
+    llvm_readelf="$(
+        find -L "$top/prebuilts/clang/host/linux-x86" \
+            -type f -name llvm-readelf 2>/dev/null |
+        sort -V |
+        tail -n 1
+    )"
+
+    if [ -x "$llvm_strip" ] && [ -x "$llvm_readelf" ]; then
+        backup_dir="$(mktemp -d)"
+
+        find \
+            "$ramdisk/system/bin" \
+            "$ramdisk/system/lib64" \
+            "$ramdisk/vendor/bin" \
+            "$ramdisk/vendor/lib64" \
+            -type f -print0 2>/dev/null |
+        while IFS= read -r -d '' file; do
+            relative="${file#"$ramdisk"/}"
+
+            case "$relative" in
+                system/bin/init|\
+                system/bin/linker64|\
+                system/bin/recovery|\
+                system/bin/twrp|\
+                system/bin/adbd|\
+                system/bin/fastbootd|\
+                system/bin/magiskboot)
+                    continue
+                    ;;
+            esac
+
+            "$llvm_readelf" -h "$file" >/dev/null 2>&1 ||
+                continue
+
+            backup="$backup_dir/$(printf '%s' "$relative" | sha256sum | awk '{print $1}')"
+            cp -a "$file" "$backup" || continue
+
+            before="$(
+                {
+                    "$llvm_readelf" -d --wide "$file" 2>/dev/null
+                    "$llvm_readelf" --dyn-syms --wide "$file" 2>/dev/null
+                    "$llvm_readelf" -h "$file" 2>/dev/null |
+                        grep -E \
+                        'Class:|Machine:|Entry point address:'
+                } |
+                sha256sum |
+                awk '{print $1}'
+            )"
+
+            if ! "$llvm_strip" --strip-unneeded "$file" >/dev/null 2>&1; then
+                cp -a "$backup" "$file"
+                continue
+            fi
+
+            after="$(
+                {
+                    "$llvm_readelf" -d --wide "$file" 2>/dev/null
+                    "$llvm_readelf" --dyn-syms --wide "$file" 2>/dev/null
+                    "$llvm_readelf" -h "$file" 2>/dev/null |
+                        grep -E \
+                        'Class:|Machine:|Entry point address:'
+                } |
+                sha256sum |
+                awk '{print $1}'
+            )"
+
+            if [ "$before" != "$after" ]; then
+                cp -a "$backup" "$file"
+            fi
+        done
+
+        rm -rf "$backup_dir"
+
+        echo "-- Rodin safe ELF slimming pass completed"
+    else
+        echo "ERROR: Rodin ELF slimming tools missing" >&2
+        exit 1
+    fi
+)
+
 # OrangeFox's A/B recovery preservation code consumes these manifests at
 # runtime. Generate them only after all rodin pruning, file moves and UPX
 # compression have finished so the file list and hashes match the final

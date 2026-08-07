@@ -163,3 +163,6 @@ PRODUCT_SOONG_NAMESPACES += $(DEVICE_PATH)
 
 -include $(DEVICE_PATH)/fox_rodin.mk
 TW_EXCLUDE_DEFAULT_USB_INIT := true
+
+# NEES: native ARM64 Edify fallback for legacy ARM32 recovery ZIPs
+TARGET_RECOVERY_DEVICE_MODULES += updater
