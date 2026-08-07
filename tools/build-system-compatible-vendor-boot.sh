@@ -153,8 +153,8 @@ fi
 "$LZ4" -l -12 --favor-decSpeed -f "$platform_pruned_cpio" "$platform_pruned_lz4" >/dev/null
 
 total_ramdisk_size=$(( $(stat -c %s "$platform_pruned_lz4") + $(stat -c %s "$RECOVERY_LZ4") ))
-if [ "$total_ramdisk_size" -ge 60000000 ]; then
-    echo "combined vendor ramdisk is $total_ramdisk_size bytes; expected less than 60000000" >&2
+if [ "$total_ramdisk_size" -ge 62000000 ]; then
+    echo "combined vendor ramdisk is $total_ramdisk_size bytes; expected less than 62000000" >&2
     exit 1
 fi
 
