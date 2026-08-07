@@ -10,11 +10,11 @@ Official release documentation and binary distribution for OrangeFox Recovery R1
 - **Codename:** rodin
 - **Release Version:** R12.0
 - **Release Channel:** Unofficial Stable
-- **Build Date:** 2026-07-31
+- **Build Date:** 2026-08-07
 - **Base Firmware:** OS3.0.301.0.WOJINXM
-- **Image File:** `OrangeFox-R12.0-Rodin-UNOFFICIAL-STABLE-20260731.img`
+- **Image File:** `OrangeFox-R12.0-Rodin-UNOFFICIAL-STABLE-20260807.img`
 - **Image Size:** 67,108,864 bytes (64 MiB)
-- **SHA-256 Checksum:** `2c7cfc7416914cd6e3833eed461280514bae37d518dd4528c512c079547e1359`
+- **SHA-256 Checksum:** `fa4c59e0f3713b42aa20d6316243fc1dd629e8899d461160411d52c4c2ff124e`
 
 ---
 
@@ -58,7 +58,7 @@ Official release documentation and binary distribution for OrangeFox Recovery R1
 
 2. Flash the recovery image to the `vendor_boot` partition:
    ```bash
-   fastboot flash vendor_boot OrangeFox-R12.0-Rodin-UNOFFICIAL-STABLE-20260731.img
+   fastboot flash vendor_boot OrangeFox-R12.0-Rodin-UNOFFICIAL-STABLE-20260807.img
    ```
 
 3. Reboot into recovery mode:
@@ -78,7 +78,7 @@ sha256sum -c SHA256SUMS
 
 Expected output:
 ```text
-OrangeFox-R12.0-Rodin-UNOFFICIAL-STABLE-20260731.img: OK
+OrangeFox-R12.0-Rodin-UNOFFICIAL-STABLE-20260807.img: OK
 ```
 
 ---

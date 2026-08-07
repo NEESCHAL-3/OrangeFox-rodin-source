@@ -2,7 +2,7 @@
 
 ## R12.0 — Unofficial Stable
 
-**Release date:** 2026-07-31  
+**Release date:** 2026-08-07  
 **Device:** POCO X7 Pro / Redmi Turbo 4  
 **Codename:** rodin  
 **Base firmware:** OS3.0.301.0.WOJINXM  
@@ -10,15 +10,29 @@
 
 ## Release image
 
-`OrangeFox-R12.0-Rodin-UNOFFICIAL-STABLE-20260731.img`
+`OrangeFox-R12.0-Rodin-UNOFFICIAL-STABLE-20260807.img`
 
 SHA-256:
 
-`2c7cfc7416914cd6e3833eed461280514bae37d518dd4528c512c079547e1359`
+`fa4c59e0f3713b42aa20d6316243fc1dd629e8899d461160411d52c4c2ff124e`
 
 Size:
 
 `67108864 bytes`
+
+## Changelog (2026-08-07)
+
+### Legacy ARM32 Edify & ZIP compatibility
+- Added support for legacy ARM32 Edify ZIP installers on ARM64 recovery.
+- Added ARM64 fallback updater at `/system/bin/updater`.
+- Added legacy Edify compatibility for `delete`, `delete_recursive`, `package_extract_dir`, `symlink`, `set_perm`, `set_perm_recursive`, `set_metadata`, and `set_metadata_recursive`.
+- Fixed old ZIPs failing with "unknown function set_perm".
+- Fixed legacy ARM32 ZIPs failing because the recovery updater was missing.
+- Added automatic ARM32 update-binary detection with fallback to the built-in ARM64 updater.
+
+### USB OTG
+- Fixed USB OTG not working after flashing a ROM.
+- Fixed OTG being lost after OrangeFox automatically reinstalls itself.
 
 ## Major fixes
 
