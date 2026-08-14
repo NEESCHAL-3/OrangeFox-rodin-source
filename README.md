@@ -1,133 +1,101 @@
-# OrangeFox Recovery for POCO X7 Pro / Redmi Turbo 4 (rodin)
+# OrangeFox Recovery for Xiaomi rodin
 
-Unofficial OrangeFox Recovery source for Xiaomi `rodin`, targeting the POCO X7 Pro and Redmi Turbo 4.
+Private, runtime-verified OrangeFox Recovery source for Xiaomi **rodin**.
 
-This repository contains the complete rodin device integration together with the external OrangeFox and Android build-system patches required to reproduce the verified recovery.
+> **Devices:** POCO X7 Pro / Redmi Turbo 4
+> **Build profile:** India
+> **Recovery layout:** A/B `vendor_boot`
+> **Maintainer:** NEESCHAL
 
-## Source status
+## Status
 
-- OrangeFox branch: `14.1`
-- Device tree baseline: `4df2a7210e1b146cebeed11252fe5f8fa516d2eb`
-- Recovery target: `bc786e483e55c4be5ebeebc039b8acf6ed65d6b2`
-- build/make target: `701572c48b6b328b1ce7f904aeb745440f0f3da0`
-- Recovery location: `vendor_boot`
-- Vendor boot header: v4
-- Layout: A/B, dynamic partitions, Virtual A/B
-- UI language: English
-- Final image size: 64 MiB
+| Area | Status |
+|---|---|
+| Recovery boot | Verified |
+| Touch | Verified |
+| FBE / decryption | Verified |
+| MTP | Verified |
+| Fastbootd | Verified |
+| A/B preservation | Verified |
+| Format Data | Verified |
+| USB OTG | Verified |
+| Legacy Edify fallback | Verified |
+| System-compatible `vendor_boot` | Verified |
 
-## Firmware profiles
+## Engineering highlights
 
-This public source release uses the runtime-verified India firmware profile only.
+- deterministic Fastbootd USB handling
+- UFS boot-LUN switching through BSG
+- A/B recovery preservation and Format Data fixes
+- recovery UI, input and font improvements
+- ARM64 fallback updater for legacy ARM32 Edify installers
+- legacy `applypatch` / `blockimg` compatibility
+- touch and FBE recovery integration
+- runtime OTG DTB patching during recovery auto-reflash
+- system-compatible `vendor_boot` generation
+- verified India platform ramdisk integration
 
-| Profile | Status | Input |
-| --- | --- | --- |
-| `india` | Verified / default | `prebuilt/india/vendor_ramdisk00` |
+## Verified firmware input
 
-Build with:
+`prebuilt/india/vendor_ramdisk00`
+
+SHA-256:
+
+```text
+c1b5ad776c93f89c6bf227ffecbf21ff3338236833d424446b388bb9819587a6
+```
+
+This repository intentionally maintains the **India firmware profile only**.
+
+## Build
+
+From the OrangeFox source root:
 
 ```bash
 export RODIN_FIRMWARE_VARIANT=india
 device/xiaomi/rodin/build-lowmem.sh vendorbootimage
 ```
 
-Other regional firmware profiles are not published by this source release.
+See [BUILDING.md](BUILDING.md) for the complete procedure.
 
-## Included rodin work
+## Repository map
 
-- system-compatible `vendor_boot` generation
-- deterministic Fastbootd USB gadget handling
-- MediaTek UFS/BSG A/B slot switching
-- A/B OrangeFox preservation after ROM installation
-- Virtual A/B and Format Data fixes
-- UI, input and font fixes
-- Android 16 touch and recovery module integration
-- FBE, KeyMint, Gatekeeper and Weaver recovery integration
-- ARM64 fallback for legacy ARM32 Edify installers
-- legacy Edify, applypatch and blockimg compatibility work
-- runtime OTG DTB repair during OrangeFox auto-preservation
+- `recovery/` — recovery ramdisk and device integration
+- `prebuilt/` — kernel, DTB, DTBO and India platform ramdisk
+- `proprietary/` — required recovery-side binaries
+- `tools/` — verification and `vendor_boot` tooling
+- `patches/bootable-recovery/` — OrangeFox recovery patches
+- `patches/build-make/` — Android build-system patches
+- `manifests/` — reproducibility hashes
+- `docs/` — technical documentation
 
-## Vendor boot architecture
+## Integrity
 
-Rodin boots recovery from a named type-2 recovery fragment inside Android vendor boot v4.
-
-The final system-compatible image combines:
-
-1. a firmware-specific type-1 platform ramdisk; and
-2. the OrangeFox type-2 recovery ramdisk.
-
-The platform fragment retains the stock first-stage runtime, SELinux data, fstab, firmware and kernel modules required for normal Android boot.
-
-Both ramdisk fragments use LZ4.
-
-Do not flash the intermediate recovery-only image produced by the normal Android build. `build-lowmem.sh vendorbootimage` runs the rodin system-compatible post-build step.
-
-## Source patches
-
-Device-specific changes outside `device/xiaomi/rodin` are published under:
-
-```text
-patches/bootable-recovery/
-patches/build-make/
-```
-
-The numbered patches preserve the individual development commits. The `rodin-complete.patch` files are exact base-to-target patches used by the automatic source preparation script.
-
-Patch integrity hashes are stored in `patches/SHA256SUMS`.
-
-## Flashing
-
-Flash a complete system-compatible 64 MiB image matching the intended firmware profile:
+Verify canonical patches:
 
 ```bash
-fastboot flash vendor_boot <OrangeFox-system-compatible.img>
-fastboot reboot recovery
+sha256sum -c patches/SHA256SUMS
 ```
 
-Do not overwrite both slots during initial testing.
-
-If recovery or Android fails to boot, restore the matching stock `vendor_boot.img` from the same firmware package installed on the device.
-
-Do not restore a `vendor_boot` image from another region or firmware release.
-
-Recommended ROM installation flow:
-
-```text
-Flash ROM
-→ allow OrangeFox to preserve itself
-→ reboot recovery
-→ Format Data if required
-→ boot Android
-```
-
-## Verified release
-
-Current verified unofficial stable image:
-
-`OrangeFox-R12.0-Rodin-UNOFFICIAL-STABLE-20260807.img`
-
-SHA-256:
-
-```text
-fa4c59e0f3713b42aa20d6316243fc1dd629e8899d461160411d52c4c2ff124e
-```
-
-Size: `67108864` bytes.
+Device inputs are tracked in `manifests/device-blobs.sha256`.
 
 ## Documentation
 
-- `BUILDING.md` — reproducible build procedure
-- `docs/ARCHITECTURE.md` — rodin vendor_boot, touch, crypto and recovery architecture
-- `docs/COMPATIBILITY.md` — supported devices and firmware profiles
-- `docs/PATCHES.md` — external recovery and build-system patches
-- `docs/LEGACY-EDIFY.md` — legacy installer compatibility
-- `docs/USB-OTG.md` — runtime OTG DTB handling
-- `docs/TROUBLESHOOTING.md` — build and recovery troubleshooting
-- `CREDITS.md` — upstream lineage and contributors
-- `NOTICE.md` — licensing and proprietary component notice
+- [Architecture](docs/ARCHITECTURE.md)
+- [Compatibility](docs/COMPATIBILITY.md)
+- [USB / OTG](docs/USB-OTG.md)
+- [Legacy Edify](docs/LEGACY-EDIFY.md)
+- [Patch layout](docs/PATCHES.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
 
-## Disclaimer
+## Development policy
 
-This is an unofficial OrangeFox Recovery build for `rodin`.
+Runtime changes must be validated on-device before promotion to the verified branch. Canonical patch files and binary inputs are checksum-tracked and should not be reformatted or replaced without intentional revalidation.
 
-Keep the matching stock firmware available before flashing or testing custom recovery images.
+## Credits
+
+Built on OrangeFox Recovery Project, Team Win Recovery Project, AOSP, and prior rodin recovery work by KSN2redawew and woshimaniubi8.
+
+Current rodin integration, fixes and runtime validation: **NEESCHAL**.
+
+See [CREDITS.md](CREDITS.md) and [NOTICE.md](NOTICE.md).
