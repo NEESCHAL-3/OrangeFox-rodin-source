@@ -1,28 +1,23 @@
-# Credits
+# Credits and Source Lineage
 
-This repository is an unofficial OrangeFox Recovery device tree and source integration for Xiaomi `rodin`.
+## Maintainer and current development
 
-## OrangeFox / Android upstream
+**NEESCHAL (`@NEESCHAL-3`)** — current Xiaomi `rodin` OrangeFox development and maintenance.
 
-- **OrangeFox Recovery Project** — recovery framework, UI, build integration and upstream OrangeFox source.
-- **Team Win Recovery Project (TWRP)** — upstream recovery foundation used by OrangeFox.
-- **Android Open Source Project (AOSP)** — Android recovery, boot image, update-engine and platform components used by the source tree.
+Current work includes system-compatible `vendor_boot` integration, Fastbootd and USB fixes, UFS/BSG slot switching, A/B recovery preservation, Format Data handling, touch/FBE integration, UI/input/font improvements, legacy Edify compatibility, runtime OTG auto-reflash handling, build reproducibility, device testing and release engineering.
 
-## rodin device lineage
+## Source base
 
-- **KSN2redawew** — original/public rodin TWRP device work used as part of the upstream device lineage and reference base.
-- **woshimaniubi8** — OrangeFox rodin device-tree/reference work used during bring-up, including source-tree references and the USB OTG DTB-fix lineage.
+**woshimaniubi8** — original `rodin` OrangeFox device source used as the starting point for this tree.
 
-The initial local OrangeFox rodin tree was derived from an early `woshimaniubi8` OrangeFox rodin snapshot with local modifications already present at import. It is therefore not represented here as an exact import of one public upstream commit.
+The current repository contains substantial subsequent modification, integration and runtime validation by NEESCHAL. The exact public upstream commit is not asserted because the local source already contained modifications when development continued from that base.
 
-The upstream rodin work itself includes lineage from `KSN2redawew/android_device_xiaomi_rodin-twrp`.
+## Upstream projects
 
-## Current rodin integration
+- **OrangeFox Recovery Project** — recovery framework, UI and upstream OrangeFox source.
+- **Team Win Recovery Project (TWRP)** — recovery foundation and core recovery components.
+- **Android Open Source Project (AOSP)** — Android recovery, boot-image, build-system and platform components.
 
-- **NEESCHAL** — current rodin OrangeFox integration, system-compatible `vendor_boot` work, Fastbootd fixes, UFS/BSG slot switching, A/B recovery preservation, Format Data fixes, touch/FBE integration, legacy Edify compatibility, runtime OTG auto-reflash handling, source reproducibility work, testing and release maintenance.
+## Attribution policy
 
-## Additional acknowledgements
-
-Thanks to everyone who tested recovery boots, touch, FBE, ROM-install preservation, Format Data, Fastbootd and USB OTG behavior on real `rodin` hardware.
-
-Individual source files and patches may retain their own copyright and attribution notices. Those notices remain authoritative for the corresponding code.
+Credits in this repository are limited to source actually used, the direct source base, and upstream projects this recovery builds upon. Individual contributions should be attributed to the relevant source, patch or commit rather than presented as authorship of unrelated rodin work.

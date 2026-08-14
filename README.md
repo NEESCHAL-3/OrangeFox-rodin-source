@@ -94,8 +94,10 @@ Runtime changes must be validated on-device before promotion to the verified bra
 
 ## Credits
 
-Built on OrangeFox Recovery Project, Team Win Recovery Project, AOSP, and prior rodin recovery work by KSN2redawew and woshimaniubi8.
+Source base: **woshimaniubi8** rodin OrangeFox device source.
 
-Current rodin integration, fixes and runtime validation: **NEESCHAL**.
+Current rodin development, integration, fixes, runtime validation and release maintenance: **NEESCHAL**.
+
+Upstream foundations: **OrangeFox Recovery Project**, **Team Win Recovery Project**, and **Android Open Source Project**.
 
 See [CREDITS.md](CREDITS.md) and [NOTICE.md](NOTICE.md).
