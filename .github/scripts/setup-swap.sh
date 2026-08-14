@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SWAPFILE=/swapfile
-SWAPSIZE=8G   # غيّر الحجم حسب الحاجة (مثلاً 8G، 12G، ...)
+SWAPSIZE="${SWAPSIZE:-12G}"
 
 # If swap already active on the same file, skip
 if sudo swapon --show=NAME | awk '{print $1}' | grep -qx "$SWAPFILE"; then

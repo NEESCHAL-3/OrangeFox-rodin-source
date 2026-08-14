@@ -1,0 +1,108 @@
+From c7cfb3671b3820d9cc1f0d102b371ea67626e5cb Mon Sep 17 00:00:00 2001
+From: NEESCHAL-3 <Nischalkhadka022@gmail.com>
+Date: Fri, 7 Aug 2026 14:09:01 +0000
+Subject: [PATCH 5/6] recovery: save rodin runtime verified baseline
+
+---
+ applypatch/Android.bp     |  4 ++++
+ applypatch/applypatch.cpp |  9 ++++++++-
+ twrpRepacker.cpp          | 12 +++++++++---
+ twrpRepacker.hpp          |  1 +
+ updater/blockimg.cpp      |  1 -
+ 5 files changed, 22 insertions(+), 5 deletions(-)
+
+diff --git a/applypatch/Android.bp b/applypatch/Android.bp
+index 0d6d23b9..013d389e 100644
+--- a/applypatch/Android.bp
++++ b/applypatch/Android.bp
+@@ -42,6 +42,10 @@ cc_defaults {
+     local_include_dirs: [
+         "include",
+     ],
++
++    include_dirs: [
++        "bootable/recovery",
++    ],
+ }
+ 
+ cc_library_static {
+diff --git a/applypatch/applypatch.cpp b/applypatch/applypatch.cpp
+index 206a3a33..e773e59f 100755
+--- a/applypatch/applypatch.cpp
++++ b/applypatch/applypatch.cpp
+@@ -189,8 +189,15 @@ static bool WriteBufferToPartition(const FileContents& file_contents, const Part
+       return false;
+     }
+ 
+-    const char* partition = pieces[1].c_str();
++    unsigned char buffer[4096];
++    start = len;
++    for (size_t p = 0; p < len; p += sizeof(buffer)) {
++      size_t to_read = len - p;
++      if (to_read > sizeof(buffer)) {
++        to_read = sizeof(buffer);
++      }
+ 
++      if (!android::base::ReadFully(fd, buffer, to_read)) {
+         PLOG(ERROR) << "Failed to verify-read " << partition << " at " << p;
+         return false;
+       }
+diff --git a/twrpRepacker.cpp b/twrpRepacker.cpp
+index 3825604e..f4f7fc5f 100755
+--- a/twrpRepacker.cpp
++++ b/twrpRepacker.cpp
+@@ -173,10 +173,15 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
+ 	if (!Backup_Image_For_Repack(part, REPACK_ORIG_DIR, Repack_Options.Backup_First, gui_lookup("repack", "Repack")))
+ 		return false;
+ 	DataManager::SetProgress(.25);
+-	if (Repack_Options.Type == REPLACE_RAMDISK_UNPACKED) {
++	if (Repack_Options.Type == REPLACE_RAMDISK_UNPACKED ||
++	    Repack_Options.Type == REPLACE_RAMDISK_COMPRESSED) {
+ 		if (!Prepare_Empty_Folder(REPACK_NEW_DIR))
+ 			return false;
+-		image_ramdisk_format = "gzip";
++
++		if (Repack_Options.Type == REPLACE_RAMDISK_COMPRESSED)
++			image_ramdisk_format = original_ramdisk_format;
++		else
++			image_ramdisk_format = "gzip";
+ 	} else {
+ 		gui_msg(Msg("unpacking_image=Unpacking {1}...")(Target_Image));
+ 		image_ramdisk_format = Unpack_Image(Target_Image, REPACK_NEW_DIR, true);
+@@ -195,7 +200,8 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
+ 			LOGERR("Failed to copy ramdisk\n");
+ 			return false;
+ 		}
+-	} else if (Repack_Options.Type == REPLACE_RAMDISK_UNPACKED) {
++	} else if (Repack_Options.Type == REPLACE_RAMDISK_UNPACKED ||
++	           Repack_Options.Type == REPLACE_RAMDISK_COMPRESSED) {
+ 			if (TWFunc::copy_file(Target_Image, REPACK_ORIG_DIR + ramdisk_cpio, 0644)) {
+ 				LOGERR("Failed to copy ramdisk\n");
+ 				return false;
+diff --git a/twrpRepacker.hpp b/twrpRepacker.hpp
+index af86763b..ee9768fe 100755
+--- a/twrpRepacker.hpp
++++ b/twrpRepacker.hpp
+@@ -27,6 +27,7 @@ enum Repack_Type {
+ 	REPLACE_RAMDISK = 1,
+ 	REPLACE_KERNEL = 2,
+ 	REPLACE_RAMDISK_UNPACKED = 3,
++	REPLACE_RAMDISK_COMPRESSED = 4,
+ };
+ 
+ struct Repack_Options_struct {
+diff --git a/updater/blockimg.cpp b/updater/blockimg.cpp
+index 13f523e0..b29aa8ce 100755
+--- a/updater/blockimg.cpp
++++ b/updater/blockimg.cpp
+@@ -1556,7 +1556,6 @@ static int PerformCommandComputeHashTree(CommandParameters& params) {
+         LOG(ERROR) << "Failed to update hash tree builder";
+         return -1;
+       }
+-#endif
+     }
+   }
+ 
+-- 
+2.43.0
+

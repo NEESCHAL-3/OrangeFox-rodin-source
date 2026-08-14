@@ -5,8 +5,8 @@ DEVICE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 TOP_DIR="${1:-$(cd -- "${DEVICE_DIR}/../../.." && pwd -P)}"
 RECOVERY_DIR="${TOP_DIR}/bootable/recovery"
 BUILD_DIR="${TOP_DIR}/build/make"
-RECOVERY_PATCH="${DEVICE_DIR}/patches/orangefox-recovery.patch"
-BUILD_PATCH="${DEVICE_DIR}/patches/orangefox-build-make.patch"
+RECOVERY_PATCH="${DEVICE_DIR}/patches/bootable-recovery/rodin-complete.patch"
+BUILD_PATCH="${DEVICE_DIR}/patches/build-make/rodin-complete.patch"
 
 apply_patch_once() {
     local repository="$1" patch_file="$2" label="$3"

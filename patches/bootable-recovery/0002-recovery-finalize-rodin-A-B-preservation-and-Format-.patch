@@ -1,0 +1,520 @@
+From 1bc4931dd2380db37784967252838eaaf992b0f0 Mon Sep 17 00:00:00 2001
+From: NEESCHAL-3 <Nischalkhadka022@gmail.com>
+Date: Fri, 31 Jul 2026 15:26:52 +0000
+Subject: [PATCH 2/6] recovery: finalize rodin A/B preservation and Format Data
+ fixes
+
+Preserve the target ROM vendor_boot platform ramdisk while injecting only the OrangeFox recovery fragment.
+
+Fix Virtual A/B Format Data ordering by unmapping recovery-created logical partitions before SnapshotManager handles the pending update.
+
+Remove the stale metadata-encrypted userdata device-mapper target through libdm before formatting the physical userdata partition.
+
+Also include APEX loading, target-slot checksum, ramdisk manifest, and related rodin recovery runtime fixes.
+---
+ partition.cpp        |  30 +++++++--
+ partitionmanager.cpp | 143 +++++++++++++++++++++++++++++--------------
+ twrp-functions.cpp   | 105 ++++++++++++++++++++++++++++---
+ twrpApex.cpp         |   2 +-
+ twrpRepacker.cpp     |  58 ++++++++++++++----
+ twrpRepacker.hpp     |   2 +-
+ 6 files changed, 266 insertions(+), 74 deletions(-)
+
+diff --git a/partition.cpp b/partition.cpp
+index c437cc77..5d976da4 100644
+--- a/partition.cpp
++++ b/partition.cpp
+@@ -49,6 +49,7 @@
+ #include "twrpTar.hpp"
+ #include "exclude.hpp"
+ #include "infomanager.hpp"
++#include <libdm/dm.h>
+ #include "set_metadata.h"
+ #include "gui/gui.hpp"
+ #include "adbbu/libtwadbbu.hpp"
+@@ -2259,11 +2260,30 @@ bool TWPartition::Wipe_Encryption() {
+ 
+ #ifdef TW_INCLUDE_CRYPTO
+ 	if (!UnMount(true))
+-		return false;
+-	if (Is_Decrypted && !Decrypted_Block_Device.empty()) {
+-//		if (delete_crypto_blk_dev((char*)("userdata")) != 0) {
+-//			LOGERR("Error deleting crypto block device, continuing anyway.\n");
+-//		}
++		goto exit;
++
++	if (Mount_Point == "/data") {
++		auto& dm = android::dm::DeviceMapper::Instance();
++		const auto state = dm.GetState("userdata");
++
++		if (state != android::dm::DmDeviceState::INVALID) {
++			LOGINFO("removing userdata device-mapper mapping before filesystem format\n");
++
++			if (!dm.DeleteDevice("userdata")) {
++				LOGERR("Unable to remove userdata device-mapper mapping.\n");
++				goto exit;
++			}
++
++			if (dm.GetState("userdata") !=
++			    android::dm::DmDeviceState::INVALID) {
++				LOGERR("userdata device-mapper mapping still exists after deletion.\n");
++				goto exit;
++			}
++
++			LOGINFO("userdata device-mapper mapping removed successfully\n");
++		} else {
++			LOGINFO("userdata device-mapper mapping is already absent\n");
++		}
+ 	}
+ #endif
+ 	Has_Data_Media = false;
+diff --git a/partitionmanager.cpp b/partitionmanager.cpp
+index 0ea3a125..fb4b569d 100755
+--- a/partitionmanager.cpp
++++ b/partitionmanager.cpp
+@@ -4834,85 +4834,134 @@ void TWPartitionManager::Unlock_Block_Partitions() {
+ }
+ 
+ bool TWPartitionManager::Unmap_Super_Devices() {
+-	bool destroyed = false;
+ #ifndef TW_EXCLUDE_APEX
+ 	twrpApex apex;
+ 	apex.Unmount();
+ #endif
++
+ 	LOGINFO("Unmap_Super_Devices\n");
++
++	// The slot selected for the next boot can change after update_engine runs.
++	// TWRP's existing super mappings, however, belong to the slot from which
++	// this recovery was booted. Use ro.boot.slot_suffix for those mappings.
++	std::string booted_suffix =
++		android::base::GetProperty("ro.boot.slot_suffix", "");
++
++	if (booted_suffix.empty()) {
++		booted_suffix = android::base::GetProperty("ro.boot.slot", "");
++		if (booted_suffix == "a" || booted_suffix == "b")
++			booted_suffix = "_" + booted_suffix;
++	}
++
+ 	for (auto iter = Partitions.begin(); iter != Partitions.end();) {
+-		LOGINFO("Checking partition: %s\n", (*iter)->Get_Mount_Point().c_str());
+-		if ((*iter)->Is_Super) {
+-			TWPartition *part = *iter;
+-			std::string bare_partition_name = Get_Bare_Partition_Name((*iter)->Get_Mount_Point());
+-			std::string blk_device_partition = bare_partition_name;
+-			if (DataManager::GetIntValue("of_ab_device") == 1 || DataManager::GetStrValue("tw_has_boot_slots") == "1")
+-				blk_device_partition.append(PartitionManager.Get_Active_Slot_Suffix());
+-			(*iter)->UnMount(false);
+-			LOGINFO("removing dynamic partition: %s\n", blk_device_partition.c_str());
+-			destroyed = DestroyLogicalPartition(blk_device_partition);
+-			std::string cow_partition = blk_device_partition + "-cow";
+-			std::string cow_partition_path = "/dev/block/mapper/" + cow_partition;
+-			struct stat st;
+-			if (lstat(cow_partition_path.c_str(), &st) == 0) {
+-				LOGINFO("removing cow partition: %s\n", cow_partition.c_str());
+-				destroyed = DestroyLogicalPartition(cow_partition);
+-			}
+-			iter = Partitions.erase(iter);
+-			delete part;
+-			if (!destroyed) {
+-				return false;
+-			}
+-		} else {
++		TWPartition* part = *iter;
++
++		LOGINFO("Checking partition: %s\n",
++			part->Get_Mount_Point().c_str());
++
++		if (!part->Is_Super) {
+ 			++iter;
++			continue;
+ 		}
+-	}
+ 
+-	const std::string block_path = "/dev/block/mapper/";
+-	DIR* d = opendir(block_path.c_str());
+-	if (d != NULL) {
+-		struct dirent* de;
+-		while ((de = readdir(d)) != NULL) {
+-			if (de->d_type == DT_LNK) {
+-				std::string partition = de->d_name;
+-				if (strcmp(partition.c_str(),"userdata") != 0){
+-					LOGINFO("removing dynamic partition: %s\n", partition.c_str());
+-					destroyed = DestroyLogicalPartition(partition);
+-					if (!destroyed) {
+-						closedir(d);
+-						return false;
+-					}
++		part->UnMount(false);
++
++		const std::string bare_partition_name =
++			Get_Bare_Partition_Name(part->Get_Mount_Point());
++
++		const std::string slotted_partition =
++			bare_partition_name + booted_suffix;
++
++		const std::string slotted_mapper =
++			"/dev/block/mapper/" + slotted_partition;
++
++		const std::string bare_mapper =
++			"/dev/block/mapper/" + bare_partition_name;
++
++		std::string mapped_partition;
++		struct stat st {};
++
++		if (!booted_suffix.empty() &&
++		    lstat(slotted_mapper.c_str(), &st) == 0) {
++			mapped_partition = slotted_partition;
++		} else if (lstat(bare_mapper.c_str(), &st) == 0) {
++			mapped_partition = bare_partition_name;
++		}
++
++		if (!mapped_partition.empty()) {
++			LOGINFO("removing dynamic partition: %s\n",
++				mapped_partition.c_str());
++
++			if (!DestroyLogicalPartition(mapped_partition)) {
++				LOGERR("Unable to remove dynamic partition: %s\n",
++					mapped_partition.c_str());
++				return false;
++			}
++
++			const std::string cow_partition =
++				mapped_partition + "-cow";
++
++			const std::string cow_partition_path =
++				"/dev/block/mapper/" + cow_partition;
++
++			if (lstat(cow_partition_path.c_str(), &st) == 0) {
++				LOGINFO("removing cow partition: %s\n",
++					cow_partition.c_str());
++
++				if (!DestroyLogicalPartition(cow_partition)) {
++					LOGERR("Unable to remove cow partition: %s\n",
++						cow_partition.c_str());
++					return false;
+ 				}
+ 			}
++		} else {
++			LOGINFO("dynamic partition already unmapped: %s\n",
++				bare_partition_name.c_str());
+ 		}
+-	closedir(d);
++
++		iter = Partitions.erase(iter);
++		delete part;
+ 	}
++
++	// Do not sweep every entry under /dev/block/mapper here. After an A/B
++	// payload installation that directory also contains target-slot snapshot,
++	// base and COW devices. SnapshotManager::HandleImminentDataWipe() owns
++	// those devices and safely cancels them immediately after this function.
+ 	return true;
+ }
+ 
+ bool TWPartitionManager::Check_Pending_Merges() {
+-	auto sm = android::snapshot::SnapshotManager::NewForFirstStageMount();
+-	if (!sm) {
+-		LOGERR("Unable to call snapshot manager\n");
+-		return false;
+-	}
++	// OrangeFox has already created booted-slot logical mappings. Remove
++	// only those mappings before SnapshotManager recreates the logical and
++	// snapshot devices needed for the pending Virtual A/B update.
++	LOGINFO("unmapping recovery-created logical partitions before snapshot handling\n");
+ 
+ 	if (!Unmap_Super_Devices()) {
+ 		LOGERR("Unable to unmap dynamic partitions.\n");
+ 		return false;
+ 	}
+ 
++	// This is normal recovery userspace, not first-stage init.
++	auto sm = android::snapshot::SnapshotManager::New();
++	if (!sm) {
++		LOGERR("Unable to call snapshot manager\n");
++		return false;
++	}
++
+ 	auto callback = [&]() -> void {
+-		double progress;
++		double progress = 0.0;
+ 		sm->GetUpdateState(&progress);
+ 		LOGINFO("waiting for merge to complete: %.2f\n", progress);
+ 	};
+ 
+-	LOGINFO("checking for merges\n");
++	LOGINFO("checking pending Virtual A/B state after logical partition unmap\n");
++
+ 	if (!sm->HandleImminentDataWipe(callback)) {
+ 		LOGERR("Unable to check merge status\n");
+ 		return false;
+ 	}
++
++	LOGINFO("pending Virtual A/B state handled successfully\n");
+ 	return true;
+ }
+ 
+diff --git a/twrp-functions.cpp b/twrp-functions.cpp
+index fd46b07f..f02b15dc 100755
+--- a/twrp-functions.cpp
++++ b/twrp-functions.cpp
+@@ -5133,17 +5133,96 @@ void TWFunc::FoxThemeCheck()
+ 
+ bool TWFunc::IsRecoveryOverwritten(bool only_update) {
+ 	static std::pair<string, string> previous_checksums;
+-	TWPartition* target_partition = PartitionManager.Find_Partition_By_Path("/boot");
+-#if defined(FOX_VENDOR_BOOT_RECOVERY) || defined(BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT)
+-	target_partition = PartitionManager.Find_Partition_By_Path("/vendor_boot");
++
++	// On virtual A/B vendor_boot recovery devices, payload.bin writes the
++	// slot opposite the one from which recovery is currently running.
++	// Temporarily point PartitionManager at that OTA target slot while taking
++	// both the before and after checksums. Restore its original selection
++	// immediately afterwards so mounts and other recovery operations are not
++	// disturbed.
++	string saved_partition_slot;
++	bool switched_partition_slot = false;
++
++#if defined(AB_OTA_UPDATER) && \
++    (defined(FOX_VENDOR_BOOT_RECOVERY) || \
++     defined(BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT))
++	string running_slot =
++		android::base::GetProperty("ro.boot.slot_suffix", "");
++
++	if (running_slot.empty())
++		running_slot =
++			android::base::GetProperty("ro.boot.slot", "");
++
++	string ota_target_slot;
++
++	if (running_slot == "_a" || running_slot == "a")
++		ota_target_slot = "B";
++	else if (running_slot == "_b" || running_slot == "b")
++		ota_target_slot = "A";
++
++	saved_partition_slot =
++		PartitionManager.Get_Active_Slot_Display();
++
++	if (!ota_target_slot.empty() &&
++	    (saved_partition_slot == "A" ||
++	     saved_partition_slot == "B")) {
++		LOGINFO(
++			"%s: checking OTA target slot %s "
++			"while recovery is running from %s\n",
++			__func__,
++			ota_target_slot.c_str(),
++			running_slot.c_str());
++
++		if (saved_partition_slot != ota_target_slot) {
++			PartitionManager.Override_Active_Slot(
++				ota_target_slot);
++			PartitionManager.Update_System_Details();
++			switched_partition_slot = true;
++		}
++	} else {
++		LOGINFO(
++			"%s: unable to resolve the OTA target slot; "
++			"using the current partition mapping\n",
++			__func__);
++	}
+ #endif
++
++	auto restore_partition_slot = [&]() {
++		if (switched_partition_slot) {
++			PartitionManager.Override_Active_Slot(
++				saved_partition_slot);
++			PartitionManager.Update_System_Details();
++		}
++	};
++
++	TWPartition* target_partition =
++		PartitionManager.Find_Partition_By_Path("/boot");
++
++#if defined(FOX_VENDOR_BOOT_RECOVERY) || \
++    defined(BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT)
++	target_partition =
++		PartitionManager.Find_Partition_By_Path("/vendor_boot");
++#endif
++
+ #ifdef OF_AB_DEVICE_WITH_RECOVERY_PARTITION
+-	target_partition = PartitionManager.Find_Partition_By_Path("/recovery");
++	target_partition =
++		PartitionManager.Find_Partition_By_Path("/recovery");
+ #endif
+-	if (!target_partition)
++
++	if (!target_partition) {
++		restore_partition_slot();
+ 		return false;
++	}
++
++	const string target_mount_point =
++		target_partition->Get_Mount_Point();
++
++	std::pair<string, string> current_checksums =
++		PartitionManager.Get_Partition_Checksums(
++			target_partition);
++
++	restore_partition_slot();
+ 
+-	std::pair<string, string> current_checksums = PartitionManager.Get_Partition_Checksums(target_partition);
+ 	if (current_checksums.first.empty()) {
+ 		LOGINFO("%s: Cannot get checksums\n", __func__);
+ 		return false;
+@@ -5154,13 +5233,21 @@ bool TWFunc::IsRecoveryOverwritten(bool only_update) {
+ 		return false;
+ 	}
+ 
+-	if (previous_checksums.first.empty() || previous_checksums == current_checksums) {
++	if (previous_checksums.first.empty() ||
++	    previous_checksums == current_checksums) {
+ 		previous_checksums = current_checksums;
+-		LOGINFO("%s: The checksums match for %s\n", __func__, target_partition->Get_Mount_Point().c_str());
++		LOGINFO(
++			"%s: The checksums match for %s\n",
++			__func__,
++			target_mount_point.c_str());
+ 		return false;
+ 	}
+ 
+-	LOGINFO("%s: The checksums do not match for %s\n", __func__, target_partition->Get_Mount_Point().c_str());
++	LOGINFO(
++		"%s: The checksums do not match for %s\n",
++		__func__,
++		target_mount_point.c_str());
++
+ 	return true;
+ }
+ 
+diff --git a/twrpApex.cpp b/twrpApex.cpp
+index 557283b1..5489027c 100755
+--- a/twrpApex.cpp
++++ b/twrpApex.cpp
+@@ -148,11 +148,11 @@ bool twrpApex::loadApexImage(std::string fileToMount, size_t loop_device_number)
+ 		return false;
+ 	}
+ 
++	off_t apex_size = lseek(fd, 0, SEEK_END);
+ 	close(fd);
+ 
+ 	memset(&info, 0, sizeof(struct loop_info64));
+ 	strlcpy((char*)info.lo_crypt_name, "twrpApex", LO_NAME_SIZE);
+-	off_t apex_size = lseek(fd, 0, SEEK_END);
+ 	info.lo_sizelimit = apex_size;
+ 	if (ioctl(loop_fd, LOOP_SET_STATUS64, &info)) {
+ 		LOGERR("failed to mount loop: %s: %s\n", fileToMount.c_str(), strerror(errno));
+diff --git a/twrpRepacker.cpp b/twrpRepacker.cpp
+index ca3f8243..3825604e 100755
+--- a/twrpRepacker.cpp
++++ b/twrpRepacker.cpp
+@@ -125,7 +125,7 @@ static bool is_AB_for_repacker() {
+ 	return !slot.empty();
+ }
+ 
+-bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const struct Repack_Options_struct& Repack_Options) {
++bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const struct Repack_Options_struct& Repack_Options, bool Flash_Both_Slots) {
+ 	if (!TWFunc::Path_Exists(TWFunc::Get_MagiskBoot())) {
+ 		LOGERR("Image repacking tool not present in this TWRP build!");
+ 		return false;
+@@ -254,13 +254,15 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
+ 		return false;
+ 	}
+ 	DataManager::SetProgress(1);
+-	if (part->Is_SlotSelect() && (Repack_Options.Type == REPLACE_RAMDISK || Repack_Options.Type == REPLACE_RAMDISK_UNPACKED)) {
++	bool switched_slots = false;
++	if (Flash_Both_Slots && part->Is_SlotSelect() && (Repack_Options.Type == REPLACE_RAMDISK || Repack_Options.Type == REPLACE_RAMDISK_UNPACKED)) {
+ 		LOGINFO("Switching slots to flash ramdisk to both partitions\n");
+ 		string Current_Slot = PartitionManager.Get_Active_Slot_Display();
+ 		if (Current_Slot == "A")
+ 			PartitionManager.Override_Active_Slot("B");
+ 		else
+ 			PartitionManager.Override_Active_Slot("A");
++		switched_slots = true;
+ 		DataManager::SetProgress(.25);
+ 		PartitionManager.Update_System_Details();
+ #if defined(OF_AB_DEVICE_WITH_RECOVERY_PARTITION) || defined(FOX_VENDOR_BOOT_RECOVERY) || defined(BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT)
+@@ -313,16 +315,21 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
+ 	TWFunc::removeDir(REPACK_NEW_DIR, false);
+ 	if (dest_partition == "/boot")
+ 		gui_msg(Msg(msg::kWarning, "repack_overwrite_warning=If device was previously rooted, then root has been overwritten and will need to be reinstalled."));
+-	string Current_Slot = PartitionManager.Get_Active_Slot_Display();
+-	if (Current_Slot == "A")
+-		PartitionManager.Override_Active_Slot("B");
+-	else
+-		PartitionManager.Override_Active_Slot("A");
++	if (switched_slots) {
++		string Current_Slot = PartitionManager.Get_Active_Slot_Display();
++		if (Current_Slot == "A")
++			PartitionManager.Override_Active_Slot("B");
++		else
++			PartitionManager.Override_Active_Slot("A");
++		PartitionManager.Update_System_Details();
++	}
+ 	return true;
+ }
+ 
+ bool twrpRepacker::Flash_Current_Twrp() {
+-#ifndef OF_RECOVERY_AB_FULL_REFLASH_RAMDISK
++#if !defined(OF_RECOVERY_AB_FULL_REFLASH_RAMDISK) && \
++    !defined(FOX_VENDOR_BOOT_RECOVERY) && \
++    !defined(BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT)
+ 	// A/B with dedicated recovery partition
+ 	std::string slot = android::base::GetProperty("ro.boot.slot_suffix", "");
+ 	if (slot.empty())
+@@ -397,8 +404,37 @@ bool twrpRepacker::Flash_Current_Twrp() {
+ 		gui_msg(Msg(msg::kError, "create_ramdisk_error=failed to create ramdisk to flash."));
+ 		return false;
+ 	}
+-	if (!Repack_Image_And_Flash("/tmp/currentramdisk.cpio.gz", Repack_Options))
++#if defined(FOX_VENDOR_BOOT_RECOVERY) || defined(BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT)
++	std::string running_slot = android::base::GetProperty("ro.boot.slot_suffix", "");
++	if (running_slot.empty())
++		running_slot = android::base::GetProperty("ro.boot.slot", "");
++
++	std::string target_slot;
++	if (running_slot == "_a" || running_slot == "a")
++		target_slot = "B";
++	else if (running_slot == "_b" || running_slot == "b")
++		target_slot = "A";
++	else {
++		LOGERR("Unable to determine the running slot for vendor_boot recovery preservation.\n");
+ 		return false;
+-       else
+-		return true;
++	}
++
++	LOGINFO("Repacking the newly flashed vendor_boot on slot %s without overwriting the platform ramdisk.\n",
++		target_slot.c_str());
++
++	PartitionManager.Override_Active_Slot(target_slot);
++	PartitionManager.Update_System_Details();
++
++	// Repack only the OTA target slot. Never mirror the complete vendor_boot
++	// image to the source slot because each ROM may use different platform
++	// ramdisk fragments, DTB data and boot configuration.
++	return Repack_Image_And_Flash(
++		"/tmp/currentramdisk.cpio.gz",
++		Repack_Options,
++		false);
++#else
++	return Repack_Image_And_Flash(
++		"/tmp/currentramdisk.cpio.gz",
++		Repack_Options);
++#endif
+ }
+diff --git a/twrpRepacker.hpp b/twrpRepacker.hpp
+index e71f3dcb..af86763b 100755
+--- a/twrpRepacker.hpp
++++ b/twrpRepacker.hpp
+@@ -40,7 +40,7 @@ class twrpRepacker {
+     public:
+         bool Backup_Image_For_Repack(TWPartition* Part, const std::string& Temp_Folder_Destination, const bool Create_Backup, const std::string& Backup_Name); // Prepares an image for repacking by unpacking it to the temp folder destination
+         std::string Unpack_Image(const std::string& Source_Path, const std::string& Temp_Folder_Destination, const bool Copy_Source, const bool Create_Destination = true); // Prepares an image for repacking by unpacking it to the temp folder destination and return the ramdisk format
+-        bool Repack_Image_And_Flash(const std::string& Target_Image, const struct Repack_Options_struct& Repack_Options); // Repacks the boot image with a new kernel or a new ramdisk
++        bool Repack_Image_And_Flash(const std::string& Target_Image, const struct Repack_Options_struct& Repack_Options, bool Flash_Both_Slots = true); // Repacks the boot image with a new kernel or a new ramdisk
+         bool Flash_Current_Twrp();
+     private:
+     	bool Prepare_Empty_Folder(const std::string& Folder); // Creates an empty folder at Folder. If the folder already exists, the folder is deleted, then created
+-- 
+2.43.0
+

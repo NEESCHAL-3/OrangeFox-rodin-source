@@ -4,26 +4,16 @@ set -euo pipefail
 DEVICE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 TOP_DIR="$(cd -- "${DEVICE_DIR}/../../.." && pwd -P)"
 PRODUCT_OUT="${1:-${OUT_DIR:-${TOP_DIR}/out}/target/product/rodin}"
-FIRMWARE_VARIANT="${RODIN_FIRMWARE_VARIANT:-cn}"
+FIRMWARE_VARIANT="${RODIN_FIRMWARE_VARIANT:-india}"
 
 case "${FIRMWARE_VARIANT}" in
-    cn)
-        STOCK_RAMDISK="${DEVICE_DIR}/prebuilt/vendor_ramdisk00"
-        STOCK_RAMDISK_SHA256="192977d50a121f7a5ddfab0212488ef0dbb0326cad802ce9d664649967a9845c"
-        DEFAULT_OUTPUT_IMAGE="${PRODUCT_OUT}/OrangeFox-R12.0-Unofficial-rodin-system-compatible.img"
-        ;;
-    global)
-        STOCK_RAMDISK="${DEVICE_DIR}/prebuilt/global/vendor_ramdisk00"
-        STOCK_RAMDISK_SHA256="349cc6598f70ae401afe3071abed6de00815af39c5aded3551cff23364208731"
-        DEFAULT_OUTPUT_IMAGE="${PRODUCT_OUT}/OrangeFox-R12.0-Unofficial-rodin-global-system-compatible.img"
-        ;;
     india)
         STOCK_RAMDISK="${DEVICE_DIR}/prebuilt/india/vendor_ramdisk00"
         STOCK_RAMDISK_SHA256="c1b5ad776c93f89c6bf227ffecbf21ff3338236833d424446b388bb9819587a6"
         DEFAULT_OUTPUT_IMAGE="${PRODUCT_OUT}/OrangeFox-R12.0-NEESCHAL-rodin-india-system-compatible.img"
         ;;
     *)
-        echo "unsupported RODIN_FIRMWARE_VARIANT: ${FIRMWARE_VARIANT} (expected cn, global, or india)" >&2
+        echo "unsupported RODIN_FIRMWARE_VARIANT: ${FIRMWARE_VARIANT} (expected india)" >&2
         exit 1
         ;;
 esac

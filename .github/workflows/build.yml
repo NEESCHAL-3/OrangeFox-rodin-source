@@ -7,22 +7,10 @@ on:
         description: OrangeFox sync branch
         required: true
         default: "14.1"
-      lunch:
-        description: Lunch target
-        required: true
-        default: "twrp_rodin-ap2a-eng"
-      build_target:
-        description: Build target
-        required: true
-        default: "recoveryimage"
       runner:
         description: Runner label
         required: true
         default: "ubuntu-latest"
-      build_jobs:
-        description: Parallel build jobs
-        required: true
-        default: "1"
 
 jobs:
   build:
@@ -41,7 +29,7 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y \
-            bc bison build-essential ccache curl flex g++-multilib gcc-multilib \
+            bc bison build-essential ccache cpio curl device-tree-compiler flex g++-multilib gcc-multilib \
             git gnupg gperf imagemagick lib32ncurses-dev lib32readline-dev \
             lib32z1-dev libelf-dev liblz4-tool libncurses-dev libsdl1.2-dev \
             libssl-dev libxml2 libxml2-utils lz4 pngcrush rsync schedtool \
@@ -98,105 +86,43 @@ jobs:
             "$GITHUB_WORKSPACE/device-tree/" \
             "$GITHUB_WORKSPACE/OrangeFox/device/xiaomi/rodin/"
 
-      - name: Verify prebuilts
+      - name: Prepare build environment
         shell: bash
         run: |
           set -euo pipefail
-          ls -lh "$GITHUB_WORKSPACE/OrangeFox/device/xiaomi/rodin/prebuilt/vendor_boot_stock.img"
-          ls -lh "$GITHUB_WORKSPACE/OrangeFox/device/xiaomi/rodin/prebuilt/vendor_ramdisk00" || true
 
-      - name: Free space
-        shell: bash
-        run: |
-          rm -rf "$GITHUB_WORKSPACE/OrangeFox/.repo"
           rm -rf "$GITHUB_WORKSPACE/ofox-sync"
+
+          SWAPSIZE=12G \
+            "$GITHUB_WORKSPACE/OrangeFox/device/xiaomi/rodin/.github/scripts/setup-swap.sh"
+
           df -h
           free -h
 
-      - name: Build OrangeFox
+      - name: Apply and verify rodin source patches
         shell: bash
         working-directory: ${{ github.workspace }}/OrangeFox
         env:
-          ALLOW_MISSING_DEPENDENCIES: "true"
-          FOX_BUILD_DEVICE: rodin
-          FOX_AB_DEVICE: "1"
-          FOX_VIRTUAL_AB_DEVICE: "1"
-          OF_FORCE_PREBUILT_KERNEL: "1"
-          OF_LOW_MEMORY_BUILD: "1"
-          OF_BUILD_JOBS: "1"
-          NINJA_ARGS: "-j1 -l1"
-          SOONG_UI_NINJA_ARGS: "-j1 -l1"
-          USE_CCACHE: "0"
-          GOMAXPROCS: "1"
-          GOGC: "20"
+          RODIN_FIRMWARE_VARIANT: india
+        run: |
+          set -euo pipefail
+
+          device/xiaomi/rodin/tools/apply-orangefox-patches.sh \
+            "$GITHUB_WORKSPACE/OrangeFox"
+
+      - name: Build system-compatible OrangeFox
+        shell: bash
+        working-directory: ${{ github.workspace }}/OrangeFox
+        env:
+          RODIN_FIRMWARE_VARIANT: india
           GOMEMLIMIT: "3GiB"
           _JAVA_OPTIONS: "-Xmx3g"
+          USE_CCACHE: "0"
         run: |
           set -eo pipefail
-          source build/envsetup.sh
-          lunch "${{ inputs.lunch }}"
-          mka -j1 adbd "${{ inputs.build_target }}" 2>&1 | tee "$GITHUB_WORKSPACE/orangefox-build.log"
 
-      - name: Locate recovery ramdisk
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          PRODUCT="$GITHUB_WORKSPACE/OrangeFox/out/target/product/rodin"
-
-          find "$PRODUCT" -maxdepth 4 -type f | sort | tee "$GITHUB_WORKSPACE/product_files.txt" || true
-
-          RECOVERY_CPIO=""
-
-          for f in \
-            "$PRODUCT/vendor_ramdisk_recovery.cpio" \
-            "$PRODUCT/obj/PACKAGING/vendor_ramdisk_fragments_intermediates/recovery.cpio.lz4" \
-            "$PRODUCT/obj/PACKAGING/vendor_boot_intermediates/vendor_ramdisk.cpio.lz4" \
-            "$PRODUCT/ramdisk-recovery.img"
-          do
-            if [ -f "$f" ]; then
-              RECOVERY_CPIO="$f"
-              break
-            fi
-          done
-
-          if [ -z "$RECOVERY_CPIO" ]; then
-            echo "::error::No recovery ramdisk found"
-            exit 1
-          fi
-
-          echo "$RECOVERY_CPIO" > "$GITHUB_WORKSPACE/recovery_cpio_path.txt"
-          ls -lh "$RECOVERY_CPIO"
-
-      - name: Repack stock vendor_boot with OrangeFox recovery
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          PRODUCT="$GITHUB_WORKSPACE/OrangeFox/out/target/product/rodin"
-          STOCK="$GITHUB_WORKSPACE/OrangeFox/device/xiaomi/rodin/prebuilt/vendor_boot_stock.img"
-          RECOVERY_CPIO="$(cat "$GITHUB_WORKSPACE/recovery_cpio_path.txt")"
-          OUT="$PRODUCT/vendor_boot_patched.img"
-          UNPACK="$PRODUCT/stock_vendor_boot"
-
-          rm -rf "$UNPACK"
-          mkdir -p "$UNPACK"
-
-          unpack_bootimg --boot_img "$STOCK" --out "$UNPACK"
-
-          RUNNER_MKBOOTIMG="$(command -v mkbootimg)"
-
-          "$RUNNER_MKBOOTIMG" \
-            --vendor_boot "$OUT" \
-            --header_version 4 \
-            --pagesize 4096 \
-            --base 0x40000000 \
-            --vendor_cmdline "bootopt=64S3,32N2,64N2 erofs.reserved_pages=64" \
-            --vendor_ramdisk "$UNPACK/vendor_ramdisk00" \
-            --dtb "$UNPACK/dtb" \
-            --vendor_bootconfig "$UNPACK/bootconfig"
-
-          unpack_bootimg --boot_img "$OUT" | tee "$GITHUB_WORKSPACE/vendor_boot_patched_info.txt"
+          device/xiaomi/rodin/build-lowmem.sh vendorbootimage \
+            2>&1 | tee "$GITHUB_WORKSPACE/orangefox-build.log"
 
       - name: Collect artifacts
         if: always()
@@ -214,14 +140,11 @@ jobs:
           fi
 
           cp -v "$GITHUB_WORKSPACE/orangefox-build.log" "$GITHUB_WORKSPACE/artifacts/" || true
-          cp -v "$GITHUB_WORKSPACE/vendor_boot_patched_info.txt" "$GITHUB_WORKSPACE/artifacts/" || true
-          cp -v "$GITHUB_WORKSPACE/product_files.txt" "$GITHUB_WORKSPACE/artifacts/" || true
-          cp -v "$GITHUB_WORKSPACE/recovery_cpio_path.txt" "$GITHUB_WORKSPACE/artifacts/" || true
 
       - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: orangefox-rodin
+          name: orangefox-rodin-india
           path: artifacts
           if-no-files-found: warn

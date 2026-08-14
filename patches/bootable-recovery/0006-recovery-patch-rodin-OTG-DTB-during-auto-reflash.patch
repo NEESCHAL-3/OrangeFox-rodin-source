@@ -1,0 +1,526 @@
+From bc786e483e55c4be5ebeebc039b8acf6ed65d6b2 Mon Sep 17 00:00:00 2001
+From: NEESCHAL-3 <Nischalkhadka022@gmail.com>
+Date: Fri, 7 Aug 2026 16:27:53 +0000
+Subject: [PATCH 6/6] recovery: patch rodin OTG DTB during auto reflash
+
+---
+ Android.mk       |   5 +
+ twrpRepacker.cpp | 447 ++++++++++++++++++++++++++++++++++++++++++++++-
+ twrpRepacker.hpp |   2 +-
+ 3 files changed, 452 insertions(+), 2 deletions(-)
+
+diff --git a/Android.mk b/Android.mk
+index e67fcb50..a865816a 100755
+--- a/Android.mk
++++ b/Android.mk
+@@ -76,6 +76,11 @@ LOCAL_STATIC_LIBRARIES += libavb \
+                           libzstd \
+                           update_metadata-protos
+ 
++ifeq ($(TARGET_DEVICE),rodin)
++    LOCAL_STATIC_LIBRARIES += libfdt
++    LOCAL_CFLAGS += -DRODIN_RUNTIME_DTB_FIX
++endif
++
+ LOCAL_SHARED_LIBRARIES += android.hardware.boot@1.0 \
+                           android.hardware.boot@1.1 \
+                           android.hardware.boot@1.2 \
+diff --git a/twrpRepacker.cpp b/twrpRepacker.cpp
+index f4f7fc5f..69c63738 100755
+--- a/twrpRepacker.cpp
++++ b/twrpRepacker.cpp
+@@ -29,6 +29,430 @@
+ #include "variables.h"
+ #include "gui/gui.hpp"
+ 
++#ifdef RODIN_RUNTIME_DTB_FIX
++#include <dirent.h>
++#include <sys/stat.h>
++
++#include <cstdint>
++#include <cstring>
++#include <fstream>
++#include <vector>
++
++#include <libfdt.h>
++#endif
++
++
++#ifdef RODIN_RUNTIME_DTB_FIX
++
++namespace {
++
++constexpr unsigned char kRodinMtkContainerMagic[4] = {
++	0xd7, 0xb7, 0xab, 0x1e
++};
++
++constexpr unsigned char kFdtMagicBytes[4] = {
++	0xd0, 0x0d, 0xfe, 0xed
++};
++
++constexpr const char* kRodinUsbNode =
++	"/soc/usb0@11201000/xhci0@11200000";
++
++constexpr const char* kRodinUsbOffloadProperty =
++	"mediatek,usb-offload";
++
++constexpr const char* kRodinXhciCompatible =
++	"mediatek,mtk-xhci";
++
++enum class RodinDtbPatchResult {
++	NotFound,
++	Success,
++	Error,
++};
++
++uint32_t RodinReadBe32(const unsigned char* p) {
++	return
++		(static_cast<uint32_t>(p[0]) << 24) |
++		(static_cast<uint32_t>(p[1]) << 16) |
++		(static_cast<uint32_t>(p[2]) << 8) |
++		static_cast<uint32_t>(p[3]);
++}
++
++bool RodinHasMagic(
++	const unsigned char* data,
++	const unsigned char magic[4]) {
++	return std::memcmp(data, magic, 4) == 0;
++}
++
++bool RodinCompatibleIsExpected(
++	const void* fdt,
++	int node) {
++
++	int length = 0;
++	const char* compatible =
++		static_cast<const char*>(
++			fdt_getprop(
++				fdt,
++				node,
++				"compatible",
++				&length));
++
++	if (!compatible || length <= 0)
++		return false;
++
++	int offset = 0;
++
++	while (offset < length) {
++		const size_t remaining =
++			static_cast<size_t>(length - offset);
++
++		const size_t current_length =
++			strnlen(compatible + offset, remaining);
++
++		if (current_length >= remaining)
++			return false;
++
++		if (std::string(
++				compatible + offset,
++				current_length) ==
++		    kRodinXhciCompatible) {
++			return true;
++		}
++
++		offset +=
++			static_cast<int>(current_length) + 1;
++	}
++
++	return false;
++}
++
++RodinDtbPatchResult RodinPatchDtbFile(
++	const std::string& path) {
++
++	std::ifstream input(
++		path,
++		std::ios::binary | std::ios::ate);
++
++	if (!input)
++		return RodinDtbPatchResult::NotFound;
++
++	const std::streamsize file_size =
++		input.tellg();
++
++	if (file_size < 4)
++		return RodinDtbPatchResult::NotFound;
++
++	std::vector<unsigned char> blob(
++		static_cast<size_t>(file_size));
++
++	input.seekg(0, std::ios::beg);
++
++	if (!input.read(
++			reinterpret_cast<char*>(blob.data()),
++			file_size)) {
++		return RodinDtbPatchResult::NotFound;
++	}
++
++	size_t fdt_offset = 0;
++	size_t fdt_length = blob.size();
++
++	if (RodinHasMagic(
++		    blob.data(),
++		    kRodinMtkContainerMagic)) {
++
++		/*
++		 * MediaTek container layout used by rodin:
++		 *
++		 *   +0x00  container magic
++		 *   +0x04  total container length (BE32)
++		 *   +0x20  embedded FDT length (BE32)
++		 *   +0x24  embedded FDT offset (BE32)
++		 */
++		if (blob.size() < 64) {
++			LOGERR(
++				"Rodin DTB: MediaTek container too small: %s\n",
++				path.c_str());
++			return RodinDtbPatchResult::Error;
++		}
++
++		const uint32_t recorded_total =
++			RodinReadBe32(blob.data() + 4);
++
++		const uint32_t embedded_length =
++			RodinReadBe32(blob.data() + 32);
++
++		const uint32_t embedded_offset =
++			RodinReadBe32(blob.data() + 36);
++
++		if (recorded_total != blob.size() ||
++		    embedded_offset < 64 ||
++		    embedded_length == 0 ||
++		    static_cast<size_t>(embedded_offset) +
++		            static_cast<size_t>(embedded_length) >
++		        blob.size()) {
++
++			LOGERR(
++				"Rodin DTB: invalid MediaTek container: %s\n",
++				path.c_str());
++
++			return RodinDtbPatchResult::Error;
++		}
++
++		fdt_offset = embedded_offset;
++		fdt_length = embedded_length;
++
++		if (fdt_length < 4 ||
++		    !RodinHasMagic(
++			    blob.data() + fdt_offset,
++			    kFdtMagicBytes)) {
++
++			LOGERR(
++				"Rodin DTB: embedded payload is not an FDT: %s\n",
++				path.c_str());
++
++			return RodinDtbPatchResult::Error;
++		}
++	}
++	else if (RodinHasMagic(
++		         blob.data(),
++		         kFdtMagicBytes)) {
++		/*
++		 * Also support a plain FDT in case MagiskBoot exposes
++		 * the embedded DTB without the MediaTek wrapper.
++		 */
++		fdt_offset = 0;
++		fdt_length = blob.size();
++	}
++	else {
++		return RodinDtbPatchResult::NotFound;
++	}
++
++	void* fdt =
++		static_cast<void*>(
++			blob.data() + fdt_offset);
++
++	const int header_result =
++		fdt_check_header(fdt);
++
++	if (header_result != 0) {
++		LOGERR(
++			"Rodin DTB: libfdt rejected %s: %s\n",
++			path.c_str(),
++			fdt_strerror(header_result));
++
++		return RodinDtbPatchResult::Error;
++	}
++
++	const int fdt_total_size =
++		fdt_totalsize(fdt);
++
++	if (fdt_total_size <= 0 ||
++	    static_cast<size_t>(fdt_total_size) >
++	        fdt_length) {
++
++		LOGERR(
++			"Rodin DTB: invalid FDT size in %s\n",
++			path.c_str());
++
++		return RodinDtbPatchResult::Error;
++	}
++
++	const int node =
++		fdt_path_offset(
++			fdt,
++			kRodinUsbNode);
++
++	if (node == -FDT_ERR_NOTFOUND)
++		return RodinDtbPatchResult::NotFound;
++
++	if (node < 0) {
++		LOGERR(
++			"Rodin DTB: failed locating xHCI node in %s: %s\n",
++			path.c_str(),
++			fdt_strerror(node));
++
++		return RodinDtbPatchResult::Error;
++	}
++
++	if (!RodinCompatibleIsExpected(fdt, node)) {
++		LOGERR(
++			"Rodin DTB: unexpected xHCI compatible in %s\n",
++			path.c_str());
++
++		return RodinDtbPatchResult::Error;
++	}
++
++	int property_length = 0;
++
++	const void* property =
++		fdt_getprop(
++			fdt,
++			node,
++			kRodinUsbOffloadProperty,
++			&property_length);
++
++	if (!property) {
++		if (property_length == -FDT_ERR_NOTFOUND) {
++			LOGINFO(
++				"Rodin OTG DTB already safe: %s absent in %s\n",
++				kRodinUsbOffloadProperty,
++				path.c_str());
++
++			return RodinDtbPatchResult::Success;
++		}
++
++		LOGERR(
++			"Rodin DTB: unable to inspect %s in %s\n",
++			kRodinUsbOffloadProperty,
++			path.c_str());
++
++		return RodinDtbPatchResult::Error;
++	}
++
++	const int delete_result =
++		fdt_delprop(
++			fdt,
++			node,
++			kRodinUsbOffloadProperty);
++
++	if (delete_result != 0) {
++		LOGERR(
++			"Rodin DTB: failed deleting %s from %s: %s\n",
++			kRodinUsbOffloadProperty,
++			path.c_str(),
++			fdt_strerror(delete_result));
++
++		return RodinDtbPatchResult::Error;
++	}
++
++	int verify_length = 0;
++
++	if (fdt_getprop(
++		    fdt,
++		    node,
++		    kRodinUsbOffloadProperty,
++		    &verify_length) != nullptr ||
++	    verify_length != -FDT_ERR_NOTFOUND) {
++
++		LOGERR(
++			"Rodin DTB: %s still exists after deletion in %s\n",
++			kRodinUsbOffloadProperty,
++			path.c_str());
++
++		return RodinDtbPatchResult::Error;
++	}
++
++	if (fdt_check_header(fdt) != 0) {
++		LOGERR(
++			"Rodin DTB: FDT validation failed after edit: %s\n",
++			path.c_str());
++
++		return RodinDtbPatchResult::Error;
++	}
++
++	std::ofstream output(
++		path,
++		std::ios::binary |
++		std::ios::trunc);
++
++	if (!output ||
++	    !output.write(
++		    reinterpret_cast<const char*>(blob.data()),
++		    static_cast<std::streamsize>(blob.size()))) {
++
++		LOGERR(
++			"Rodin DTB: failed writing patched DTB: %s\n",
++			path.c_str());
++
++		return RodinDtbPatchResult::Error;
++	}
++
++	LOGINFO(
++		"Rodin OTG DTB patch: removed %s from %s:%s\n",
++		kRodinUsbOffloadProperty,
++		path.c_str(),
++		kRodinUsbNode);
++
++	return RodinDtbPatchResult::Success;
++}
++
++RodinDtbPatchResult RodinPatchDtbDirectory(
++	const std::string& directory) {
++
++	DIR* dir =
++		opendir(directory.c_str());
++
++	if (!dir)
++		return RodinDtbPatchResult::NotFound;
++
++	RodinDtbPatchResult final_result =
++		RodinDtbPatchResult::NotFound;
++
++	while (dirent* entry = readdir(dir)) {
++		if (!std::strcmp(entry->d_name, ".") ||
++		    !std::strcmp(entry->d_name, "..")) {
++			continue;
++		}
++
++		std::string path = directory;
++
++		if (!path.empty() &&
++		    path.back() != '/') {
++			path += '/';
++		}
++
++		path += entry->d_name;
++
++		struct stat st {};
++
++		if (lstat(path.c_str(), &st) != 0)
++			continue;
++
++		RodinDtbPatchResult result =
++			RodinDtbPatchResult::NotFound;
++
++		if (S_ISDIR(st.st_mode)) {
++			result =
++				RodinPatchDtbDirectory(path);
++		}
++		else if (S_ISREG(st.st_mode)) {
++			result =
++				RodinPatchDtbFile(path);
++		}
++
++		if (result == RodinDtbPatchResult::Success ||
++		    result == RodinDtbPatchResult::Error) {
++			final_result = result;
++			break;
++		}
++	}
++
++	closedir(dir);
++	return final_result;
++}
++
++bool PatchRodinUsbOffloadDtb(
++	const std::string& directory) {
++
++	const RodinDtbPatchResult result =
++		RodinPatchDtbDirectory(directory);
++
++	if (result == RodinDtbPatchResult::Success)
++		return true;
++
++	if (result == RodinDtbPatchResult::NotFound) {
++		LOGERR(
++			"Rodin OTG DTB patch: compatible xHCI DTB was not found in %s\n",
++			directory.c_str());
++	}
++
++	return false;
++}
++
++}  // namespace
++
++#endif  // RODIN_RUNTIME_DTB_FIX
++
++
+ bool twrpRepacker::Prepare_Empty_Folder(const std::string& Folder) {
+ 	if (TWFunc::Path_Exists(Folder))
+ 		TWFunc::removeDir(Folder, false);
+@@ -125,7 +549,7 @@ static bool is_AB_for_repacker() {
+ 	return !slot.empty();
+ }
+ 
+-bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const struct Repack_Options_struct& Repack_Options, bool Flash_Both_Slots) {
++bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const struct Repack_Options_struct& Repack_Options, bool Flash_Both_Slots, bool Patch_Rodin_Usb_Dtb) {
+ 	if (!TWFunc::Path_Exists(TWFunc::Get_MagiskBoot())) {
+ 		LOGERR("Image repacking tool not present in this TWRP build!");
+ 		return false;
+@@ -172,6 +596,19 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
+ 	}
+ 	if (!Backup_Image_For_Repack(part, REPACK_ORIG_DIR, Repack_Options.Backup_First, gui_lookup("repack", "Repack")))
+ 		return false;
++
++#ifdef RODIN_RUNTIME_DTB_FIX
++	if (Patch_Rodin_Usb_Dtb) {
++		LOGINFO("Applying rodin target-slot OTG DTB patch before vendor_boot repack.\n");
++
++		if (!PatchRodinUsbOffloadDtb(REPACK_ORIG_DIR)) {
++			LOGERR("Rodin OTG DTB patch failed; refusing to flash an unsafe auto-repacked vendor_boot.\n");
++			gui_print("Rodin OTG DTB patch failed. OrangeFox auto-reflash aborted.\n");
++			return false;
++		}
++	}
++#endif
++
+ 	DataManager::SetProgress(.25);
+ 	if (Repack_Options.Type == REPLACE_RAMDISK_UNPACKED ||
+ 	    Repack_Options.Type == REPLACE_RAMDISK_COMPRESSED) {
+@@ -434,10 +871,18 @@ bool twrpRepacker::Flash_Current_Twrp() {
+ 	// Repack only the OTA target slot. Never mirror the complete vendor_boot
+ 	// image to the source slot because each ROM may use different platform
+ 	// ramdisk fragments, DTB data and boot configuration.
++#ifdef RODIN_RUNTIME_DTB_FIX
++	return Repack_Image_And_Flash(
++		"/tmp/currentramdisk.cpio.gz",
++		Repack_Options,
++		false,
++		true);
++#else
+ 	return Repack_Image_And_Flash(
+ 		"/tmp/currentramdisk.cpio.gz",
+ 		Repack_Options,
+ 		false);
++#endif
+ #else
+ 	return Repack_Image_And_Flash(
+ 		"/tmp/currentramdisk.cpio.gz",
+diff --git a/twrpRepacker.hpp b/twrpRepacker.hpp
+index ee9768fe..1caacfd0 100755
+--- a/twrpRepacker.hpp
++++ b/twrpRepacker.hpp
+@@ -41,7 +41,7 @@ class twrpRepacker {
+     public:
+         bool Backup_Image_For_Repack(TWPartition* Part, const std::string& Temp_Folder_Destination, const bool Create_Backup, const std::string& Backup_Name); // Prepares an image for repacking by unpacking it to the temp folder destination
+         std::string Unpack_Image(const std::string& Source_Path, const std::string& Temp_Folder_Destination, const bool Copy_Source, const bool Create_Destination = true); // Prepares an image for repacking by unpacking it to the temp folder destination and return the ramdisk format
+-        bool Repack_Image_And_Flash(const std::string& Target_Image, const struct Repack_Options_struct& Repack_Options, bool Flash_Both_Slots = true); // Repacks the boot image with a new kernel or a new ramdisk
++        bool Repack_Image_And_Flash(const std::string& Target_Image, const struct Repack_Options_struct& Repack_Options, bool Flash_Both_Slots = true, bool Patch_Rodin_Usb_Dtb = false); // Repacks the boot image with a new kernel or a new ramdisk
+         bool Flash_Current_Twrp();
+     private:
+     	bool Prepare_Empty_Folder(const std::string& Folder); // Creates an empty folder at Folder. If the folder already exists, the folder is deleted, then created
+-- 
+2.43.0
+
