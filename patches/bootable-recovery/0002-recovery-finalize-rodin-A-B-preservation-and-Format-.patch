@@ -1,4 +1,4 @@
-From 1bc4931dd2380db37784967252838eaaf992b0f0 Mon Sep 17 00:00:00 2001
+From 33fadb24757a6962f6b37c471757ee9997b47e0f Mon Sep 17 00:00:00 2001
 From: NEESCHAL-3 <Nischalkhadka022@gmail.com>
 Date: Fri, 31 Jul 2026 15:26:52 +0000
 Subject: [PATCH 2/6] recovery: finalize rodin A/B preservation and Format Data
@@ -21,7 +21,7 @@ Also include APEX loading, target-slot checksum, ramdisk manifest, and related r
  6 files changed, 266 insertions(+), 74 deletions(-)
 
 diff --git a/partition.cpp b/partition.cpp
-index c437cc77..5d976da4 100644
+index 908c3d3f..a414bd00 100644
 --- a/partition.cpp
 +++ b/partition.cpp
 @@ -49,6 +49,7 @@
@@ -32,7 +32,7 @@ index c437cc77..5d976da4 100644
  #include "set_metadata.h"
  #include "gui/gui.hpp"
  #include "adbbu/libtwadbbu.hpp"
-@@ -2259,11 +2260,30 @@ bool TWPartition::Wipe_Encryption() {
+@@ -2263,11 +2264,30 @@ bool TWPartition::Wipe_Encryption() {
  
  #ifdef TW_INCLUDE_CRYPTO
  	if (!UnMount(true))
@@ -69,10 +69,10 @@ index c437cc77..5d976da4 100644
  #endif
  	Has_Data_Media = false;
 diff --git a/partitionmanager.cpp b/partitionmanager.cpp
-index 0ea3a125..fb4b569d 100755
+index 18d0e29c..08bd18ed 100755
 --- a/partitionmanager.cpp
 +++ b/partitionmanager.cpp
-@@ -4834,85 +4834,134 @@ void TWPartitionManager::Unlock_Block_Partitions() {
+@@ -4837,85 +4837,134 @@ void TWPartitionManager::Unlock_Block_Partitions() {
  }
  
  bool TWPartitionManager::Unmap_Super_Devices() {
@@ -255,7 +255,7 @@ index 0ea3a125..fb4b569d 100755
  }
  
 diff --git a/twrp-functions.cpp b/twrp-functions.cpp
-index fd46b07f..f02b15dc 100755
+index 2793fcf4..0783ec1e 100755
 --- a/twrp-functions.cpp
 +++ b/twrp-functions.cpp
 @@ -5133,17 +5133,96 @@ void TWFunc::FoxThemeCheck()

@@ -1,4 +1,4 @@
-From bc786e483e55c4be5ebeebc039b8acf6ed65d6b2 Mon Sep 17 00:00:00 2001
+From 7afa0f2030e2901d9c9a92d49d3b12a0ec176910 Mon Sep 17 00:00:00 2001
 From: NEESCHAL-3 <Nischalkhadka022@gmail.com>
 Date: Fri, 7 Aug 2026 16:27:53 +0000
 Subject: [PATCH 6/6] recovery: patch rodin OTG DTB during auto reflash

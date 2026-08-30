@@ -75,9 +75,9 @@ check_file "${DEVICE_DIR}/patches/bootable-recovery/rodin-complete.patch"
 check_file "${DEVICE_DIR}/patches/build-make/rodin-complete.patch"
 check_file "${DEVICE_DIR}/manifests/device-blobs.sha256"
 check_file "${DEVICE_DIR}/manifests/orangefox-fox_14.1-pinned.xml"
-check_sha256 "${DEVICE_DIR}/patches/build-make/rodin-complete.patch" 5f2d3f43a4d78eee6d560a4a169df30fc95de6fa2ed294e3210e684a641a8329
-check_sha256 "${DEVICE_DIR}/patches/bootable-recovery/rodin-complete.patch" 7a9e58bd9ac062bf93c67c080ba3ec397ce3b06530283b4eb07031e6163dc763
-check_sha256 "${DEVICE_DIR}/manifests/device-blobs.sha256" 9d341097f1b2a3ddafd1c64564242ebec0f423a181b778e57ed5ee6b74ac6404
+check_sha256 "${DEVICE_DIR}/patches/build-make/rodin-complete.patch" 8d7f88b979fd51280d52774ccc51205a4316f6160053a17210c246ca4944b18b
+check_sha256 "${DEVICE_DIR}/patches/bootable-recovery/rodin-complete.patch" ed4159968420deb6b10d12c201ca8097a91bfbef972eb29b67c583a4484cbb4b
+check_sha256 "${DEVICE_DIR}/manifests/device-blobs.sha256" d16e3521428abc8b005ee1f8e49811002c8492dbf2eb6e76bf23ef8c8c205fa9
 
 if [[ "${RODIN_ALLOW_UNPINNED_SOURCE:-0}" != "1" ]]; then
     if ! python3 "${DEVICE_DIR}/tools/verify-source-manifest.py" "${TOP_DIR}" \
@@ -85,7 +85,7 @@ if [[ "${RODIN_ALLOW_UNPINNED_SOURCE:-0}" != "1" ]]; then
         fail "OrangeFox source tree differs from the pinned manifest"
     fi
     check_revision "${TOP_DIR}/vendor/recovery" \
-        0d7959e6538db5ddfff892cf7dfe207c68b0b753 "OrangeFox vendor/recovery"
+        af3d99b83adedf88fa9992d9320c5ce9811c6b08 "OrangeFox vendor/recovery"
 fi
 
 while IFS= read -r relative; do

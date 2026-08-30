@@ -309,31 +309,6 @@ index 71bbc967..4291f2aa 100644
  		key_status = KS_NONE;
  		touch_status = TS_NONE;
  #ifdef TW_USE_KEY_CODE_TOUCH_SYNC
-diff --git a/gui/theme/common/languages/ja_JP.xml b/gui/theme/common/languages/ja_JP.xml
-index 40d7d6e6..fc62815f 100644
---- a/gui/theme/common/languages/ja_JP.xml
-+++ b/gui/theme/common/languages/ja_JP.xml
-@@ -1,6 +1,6 @@
- <?xml version="1.0" encoding="UTF-8"?>
- <language>
--	<display>英語</display>
-+	<display>日本語</display>
- 
- 	<resources>
- 		<!-- Font overrides - only change these if your language requires special characters -->
-diff --git a/gui/theme/extra-languages/languages/zh_CN.xml b/gui/theme/extra-languages/languages/zh_CN.xml
-index cd4100f4..d1aca5b5 100644
---- a/gui/theme/extra-languages/languages/zh_CN.xml
-+++ b/gui/theme/extra-languages/languages/zh_CN.xml
-@@ -885,7 +885,7 @@
- 		<string name="theme_engine_update">是否应用更改并重新加载?</string>
- 		<string name="theme_engine_reset">重置主题并重新加载吗？</string>
- 		<string name="apply_btn">应用</string>
--		<string name="theme_hdr">自定义主题版本与 OrangeFox 版本不匹配。</string>
-+		<string name="theme_hdr">主题</string>
- 		
- 		<string name="font_small">小</string>
- 		<string name="font_norm">标准</string>
 diff --git a/gui/theme/portrait_hdpi/pages/customization.xml b/gui/theme/portrait_hdpi/pages/customization.xml
 index 3d5cc9b3..fed8df35 100644
 --- a/gui/theme/portrait_hdpi/pages/customization.xml
@@ -748,10 +723,10 @@ index d224fbb1..e15894cb 100644
  			FT_Get_Kerning(f->face, prev_idx, char_idx, FT_KERNING_DEFAULT, &delta);
  			total_w += delta.x >> 6;
 diff --git a/orangefox.mk b/orangefox.mk
-index 1f02b296..efb82ecd 100644
+index 85f0278f..41584793 100644
 --- a/orangefox.mk
 +++ b/orangefox.mk
-@@ -697,6 +697,16 @@ ifeq ($(FOX_ALLOW_EARLY_SETTINGS_LOAD),1)
+@@ -695,6 +695,16 @@ ifeq ($(FOX_ALLOW_EARLY_SETTINGS_LOAD),1)
      LOCAL_CFLAGS += -DFOX_ALLOW_EARLY_SETTINGS_LOAD='"1"'
  endif
  
@@ -769,7 +744,7 @@ index 1f02b296..efb82ecd 100644
  ifeq ($(OF_WIPE_METADATA_AFTER_DATAFORMAT),1)
     ifeq ($(TW_INCLUDE_FBE_METADATA_DECRYPT),true)
 diff --git a/partition.cpp b/partition.cpp
-index c437cc77..5d976da4 100644
+index 908c3d3f..a414bd00 100644
 --- a/partition.cpp
 +++ b/partition.cpp
 @@ -49,6 +49,7 @@
@@ -780,7 +755,7 @@ index c437cc77..5d976da4 100644
  #include "set_metadata.h"
  #include "gui/gui.hpp"
  #include "adbbu/libtwadbbu.hpp"
-@@ -2259,11 +2260,30 @@ bool TWPartition::Wipe_Encryption() {
+@@ -2263,11 +2264,30 @@ bool TWPartition::Wipe_Encryption() {
  
  #ifdef TW_INCLUDE_CRYPTO
  	if (!UnMount(true))
@@ -817,10 +792,10 @@ index c437cc77..5d976da4 100644
  #endif
  	Has_Data_Media = false;
 diff --git a/partitionmanager.cpp b/partitionmanager.cpp
-index 0ea3a125..fb4b569d 100755
+index 18d0e29c..08bd18ed 100755
 --- a/partitionmanager.cpp
 +++ b/partitionmanager.cpp
-@@ -4834,85 +4834,134 @@ void TWPartitionManager::Unlock_Block_Partitions() {
+@@ -4837,85 +4837,134 @@ void TWPartitionManager::Unlock_Block_Partitions() {
  }
  
  bool TWPartitionManager::Unmap_Super_Devices() {
@@ -1003,7 +978,7 @@ index 0ea3a125..fb4b569d 100755
  }
  
 diff --git a/twrp-functions.cpp b/twrp-functions.cpp
-index fd46b07f..f02b15dc 100755
+index 2793fcf4..0783ec1e 100755
 --- a/twrp-functions.cpp
 +++ b/twrp-functions.cpp
 @@ -5133,17 +5133,96 @@ void TWFunc::FoxThemeCheck()
@@ -1804,7 +1779,7 @@ index e71f3dcb..1caacfd0 100755
      private:
      	bool Prepare_Empty_Folder(const std::string& Folder); // Creates an empty folder at Folder. If the folder already exists, the folder is deleted, then created
 diff --git a/twrpinstall/twinstall.cpp b/twrpinstall/twinstall.cpp
-index e621ca1e..b091b3b5 100755
+index 3691a2f1..918eceab 100755
 --- a/twrpinstall/twinstall.cpp
 +++ b/twrpinstall/twinstall.cpp
 @@ -24,6 +24,7 @@
@@ -1815,7 +1790,7 @@ index e621ca1e..b091b3b5 100755
  #include <ctype.h>
  #include <errno.h>
  #include <fcntl.h>
-@@ -167,7 +168,27 @@ static int Prepare_Update_Binary(const char *path, ZipArchiveHandle Zip) {
+@@ -170,7 +171,27 @@ static int Prepare_Update_Binary(const char *path, ZipArchiveHandle Zip) {
  }
  
  
@@ -1844,7 +1819,7 @@ index e621ca1e..b091b3b5 100755
  	int ret_val, pipe_fd[2], status, zip_verify;
  	int aroma_running = 0;
  	char buffer[1024];
-@@ -189,7 +210,36 @@ static int Run_Update_Binary(const char *path, int* wipe_cache, zip_type ztype)
+@@ -192,7 +213,36 @@ static int Run_Update_Binary(const char *path, int* wipe_cache, zip_type ztype)
          return ret_val;
      }
  
@@ -1882,7 +1857,7 @@ index e621ca1e..b091b3b5 100755
  	const char* chr_args[args.size() + 1];
  	chr_args[args.size()] = NULL;
  	for (size_t i = 0; i < args.size(); i++)
-@@ -205,6 +255,7 @@ static int Run_Update_Binary(const char *path, int* wipe_cache, zip_type ztype)
+@@ -208,6 +258,7 @@ static int Run_Update_Binary(const char *path, int* wipe_cache, zip_type ztype)
  	close(pipe_fd[1]);
  
  	*wipe_cache = 0;
@@ -1890,7 +1865,7 @@ index e621ca1e..b091b3b5 100755
  
  	DataManager::GetValue(TW_SIGNED_ZIP_VERIFY_VAR, zip_verify);
  	child_data = fdopen(pipe_fd[0], "r");
-@@ -251,6 +302,10 @@ static int Run_Update_Binary(const char *path, int* wipe_cache, zip_type ztype)
+@@ -254,6 +305,10 @@ static int Run_Update_Binary(const char *path, int* wipe_cache, zip_type ztype)
  			// Do nothing, not supported by TWRP
  		} else if (strcmp(command, "log") == 0) {
  			printf("%s\n", strtok(NULL, "\n"));
@@ -1901,7 +1876,7 @@ index e621ca1e..b091b3b5 100755
  		} else {
  			LOGERR("unknown command [%s]\n", command);
  		}
-@@ -294,8 +349,8 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
+@@ -300,8 +355,8 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
       {
           DataManager::SetValue(FOX_ZIP_INSTALLER_CODE, 0); // internal zip = standard zip installer
           DataManager::SetValue(FOX_ZIP_INSTALLER_TREBLE, 0);
@@ -1912,7 +1887,7 @@ index e621ca1e..b091b3b5 100755
      {
  	gui_msg(Msg("installing_zip=Installing zip file '{1}'")(path));
  	if (strlen(path) < 9 || strncmp(path, "/sideload", 9) != 0) {
-@@ -348,7 +403,7 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
+@@ -354,7 +409,7 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
  			gui_msg("verify_zip_done=Zip signature verified successfully.");
  		}
      }
@@ -1921,7 +1896,7 @@ index e621ca1e..b091b3b5 100755
      ZipArchiveHandle Zip = package->GetZipArchiveHandle();
      if (!Zip) {
        set_miui_install_status(OTA_CORRUPT, true);
-@@ -413,7 +468,7 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
+@@ -419,7 +474,7 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
  					TWFunc::RunFoxScript(FOX_PRE_ROM_FLASH_SCRIPT, path);
  	  			}
  
@@ -1930,7 +1905,7 @@ index e621ca1e..b091b3b5 100755
  
  				if (DataManager::GetIntValue("fox_processing_asserts") != 0) {
  					TWFunc::Fox_Property_Set("ro.product.device", DataManager::GetStrValue("fox_product_device"));
-@@ -445,7 +500,7 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
+@@ -451,7 +506,7 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
  
  			TWFunc::IsRecoveryOverwritten(true);
  
@@ -1939,7 +1914,7 @@ index e621ca1e..b091b3b5 100755
  
  			DataManager::SetValue(FOX_ZIP_INSTALLER_CODE, 1); // mark as custom ROM install
  
-@@ -476,6 +531,91 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
+@@ -482,6 +537,91 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
    time(&stop);
    int total_time = (int) difftime(stop, start);
  
@@ -2031,7 +2006,7 @@ index e621ca1e..b091b3b5 100755
    if (ret_val == INSTALL_CORRUPT)
      {
          set_miui_install_status(OTA_CORRUPT, true);
-@@ -492,7 +632,7 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
+@@ -498,7 +638,7 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
       if (Fox_Skip_OTA()) // yes
       {
           //LOGINFO("OrangeFox: not running the incremental OTA backup (OTA_BAK).\n");
@@ -2040,7 +2015,7 @@ index e621ca1e..b091b3b5 100755
       else // else let us proceed with the OTA stuff
       if (DataManager::GetIntValue(FOX_INCREMENTAL_OTA_FAIL) != 1)
       {
-@@ -523,7 +663,7 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
+@@ -529,7 +669,7 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
        	DataManager::SetValue(FOX_INCREMENTAL_OTA_FAIL, 0);
        	DataManager::SetValue(FOX_LOADED_FINGERPRINT, 0);
        	DataManager::SetValue(FOX_RUN_SURVIVAL_BACKUP, 0);

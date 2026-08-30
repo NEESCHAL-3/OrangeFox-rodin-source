@@ -1,4 +1,4 @@
-From 9be51a750bad0782b8100ec8825644f04bffc94d Mon Sep 17 00:00:00 2001
+From 0fdcfe22b74bd490b664142bb249cb46a85fe7fb Mon Sep 17 00:00:00 2001
 From: NEESCHAL-3 <Nischalkhadka022@gmail.com>
 Date: Fri, 7 Aug 2026 14:04:03 +0000
 Subject: [PATCH 4/6] recovery: add ARM64 fallback for legacy ARM32 Edify
@@ -17,7 +17,7 @@ Subject: [PATCH 4/6] recovery: add ARM64 fallback for legacy ARM32 Edify
  create mode 100644 updater/legacy_compat.cpp
 
 diff --git a/twrpinstall/twinstall.cpp b/twrpinstall/twinstall.cpp
-index e621ca1e..b091b3b5 100755
+index 3691a2f1..918eceab 100755
 --- a/twrpinstall/twinstall.cpp
 +++ b/twrpinstall/twinstall.cpp
 @@ -24,6 +24,7 @@
@@ -28,7 +28,7 @@ index e621ca1e..b091b3b5 100755
  #include <ctype.h>
  #include <errno.h>
  #include <fcntl.h>
-@@ -167,7 +168,27 @@ static int Prepare_Update_Binary(const char *path, ZipArchiveHandle Zip) {
+@@ -170,7 +171,27 @@ static int Prepare_Update_Binary(const char *path, ZipArchiveHandle Zip) {
  }
  
  
@@ -57,7 +57,7 @@ index e621ca1e..b091b3b5 100755
  	int ret_val, pipe_fd[2], status, zip_verify;
  	int aroma_running = 0;
  	char buffer[1024];
-@@ -189,7 +210,36 @@ static int Run_Update_Binary(const char *path, int* wipe_cache, zip_type ztype)
+@@ -192,7 +213,36 @@ static int Run_Update_Binary(const char *path, int* wipe_cache, zip_type ztype)
          return ret_val;
      }
  
@@ -95,7 +95,7 @@ index e621ca1e..b091b3b5 100755
  	const char* chr_args[args.size() + 1];
  	chr_args[args.size()] = NULL;
  	for (size_t i = 0; i < args.size(); i++)
-@@ -205,6 +255,7 @@ static int Run_Update_Binary(const char *path, int* wipe_cache, zip_type ztype)
+@@ -208,6 +258,7 @@ static int Run_Update_Binary(const char *path, int* wipe_cache, zip_type ztype)
  	close(pipe_fd[1]);
  
  	*wipe_cache = 0;
@@ -103,7 +103,7 @@ index e621ca1e..b091b3b5 100755
  
  	DataManager::GetValue(TW_SIGNED_ZIP_VERIFY_VAR, zip_verify);
  	child_data = fdopen(pipe_fd[0], "r");
-@@ -251,6 +302,10 @@ static int Run_Update_Binary(const char *path, int* wipe_cache, zip_type ztype)
+@@ -254,6 +305,10 @@ static int Run_Update_Binary(const char *path, int* wipe_cache, zip_type ztype)
  			// Do nothing, not supported by TWRP
  		} else if (strcmp(command, "log") == 0) {
  			printf("%s\n", strtok(NULL, "\n"));
@@ -114,7 +114,7 @@ index e621ca1e..b091b3b5 100755
  		} else {
  			LOGERR("unknown command [%s]\n", command);
  		}
-@@ -294,8 +349,8 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
+@@ -300,8 +355,8 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
       {
           DataManager::SetValue(FOX_ZIP_INSTALLER_CODE, 0); // internal zip = standard zip installer
           DataManager::SetValue(FOX_ZIP_INSTALLER_TREBLE, 0);
@@ -125,7 +125,7 @@ index e621ca1e..b091b3b5 100755
      {
  	gui_msg(Msg("installing_zip=Installing zip file '{1}'")(path));
  	if (strlen(path) < 9 || strncmp(path, "/sideload", 9) != 0) {
-@@ -348,7 +403,7 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
+@@ -354,7 +409,7 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
  			gui_msg("verify_zip_done=Zip signature verified successfully.");
  		}
      }
@@ -134,7 +134,7 @@ index e621ca1e..b091b3b5 100755
      ZipArchiveHandle Zip = package->GetZipArchiveHandle();
      if (!Zip) {
        set_miui_install_status(OTA_CORRUPT, true);
-@@ -413,7 +468,7 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
+@@ -419,7 +474,7 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
  					TWFunc::RunFoxScript(FOX_PRE_ROM_FLASH_SCRIPT, path);
  	  			}
  
@@ -143,7 +143,7 @@ index e621ca1e..b091b3b5 100755
  
  				if (DataManager::GetIntValue("fox_processing_asserts") != 0) {
  					TWFunc::Fox_Property_Set("ro.product.device", DataManager::GetStrValue("fox_product_device"));
-@@ -445,7 +500,7 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
+@@ -451,7 +506,7 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
  
  			TWFunc::IsRecoveryOverwritten(true);
  
@@ -152,7 +152,7 @@ index e621ca1e..b091b3b5 100755
  
  			DataManager::SetValue(FOX_ZIP_INSTALLER_CODE, 1); // mark as custom ROM install
  
-@@ -476,6 +531,91 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
+@@ -482,6 +537,91 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
    time(&stop);
    int total_time = (int) difftime(stop, start);
  
@@ -244,7 +244,7 @@ index e621ca1e..b091b3b5 100755
    if (ret_val == INSTALL_CORRUPT)
      {
          set_miui_install_status(OTA_CORRUPT, true);
-@@ -492,7 +632,7 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
+@@ -498,7 +638,7 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
       if (Fox_Skip_OTA()) // yes
       {
           //LOGINFO("OrangeFox: not running the incremental OTA backup (OTA_BAK).\n");
@@ -253,7 +253,7 @@ index e621ca1e..b091b3b5 100755
       else // else let us proceed with the OTA stuff
       if (DataManager::GetIntValue(FOX_INCREMENTAL_OTA_FAIL) != 1)
       {
-@@ -523,7 +663,7 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
+@@ -529,7 +669,7 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
        	DataManager::SetValue(FOX_INCREMENTAL_OTA_FAIL, 0);
        	DataManager::SetValue(FOX_LOADED_FINGERPRINT, 0);
        	DataManager::SetValue(FOX_RUN_SURVIVAL_BACKUP, 0);

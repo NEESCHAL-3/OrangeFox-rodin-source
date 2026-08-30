@@ -8,7 +8,7 @@
   
   <default remote="aosp" revision="refs/tags/android-14.0.0_r67" sync-j="4"/>
   
-  <project name="android_bootable_recovery" path="bootable/recovery" remote="nebrassy" revision="fd98f33a722bd0bd52034f170bb91e2862654d6b" upstream="android-14" dest-branch="android-14"/>
+  <project name="android_bootable_recovery" path="bootable/recovery" remote="nebrassy" revision="9860b87c823039b7950a4dee4e945d587ec0a9b0" upstream="android-14" dest-branch="android-14"/>
   <project name="android_build" path="build/make" remote="nebrassy" revision="506df226dd003a364916b6b3ee1eb3bf9064f97f" upstream="android-14" dest-branch="android-14" groups="pdk">
     <copyfile src="core/root.mk" dest="Makefile"/>
     <linkfile src="CleanSpec.mk" dest="build/CleanSpec.mk"/>

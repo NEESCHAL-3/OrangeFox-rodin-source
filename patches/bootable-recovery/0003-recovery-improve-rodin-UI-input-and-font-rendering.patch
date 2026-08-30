@@ -1,4 +1,4 @@
-From 1adfb3b26ea1fb376bca3e2e1d483e25ff6949d0 Mon Sep 17 00:00:00 2001
+From 1a8cf33858ab086fc10fcb14035af2a23fb117f6 Mon Sep 17 00:00:00 2001
 From: NEESCHAL-3 <Nischalkhadka022@gmail.com>
 Date: Fri, 31 Jul 2026 15:28:55 +0000
 Subject: [PATCH 3/6] recovery: improve rodin UI, input and font rendering
@@ -8,8 +8,6 @@ Integrate the GUI, graphics, input-event and TrueType changes used by OrangeFox 
 Improve recovery display behavior, font handling, language resources, touch input and device-specific UI configuration.
 ---
  gui/gui.cpp                                   | 69 +++++++++++---
- gui/theme/common/languages/ja_JP.xml          |  2 +-
- gui/theme/extra-languages/languages/zh_CN.xml |  2 +-
  .../portrait_hdpi/pages/customization.xml     | 94 +------------------
  gui/theme/portrait_hdpi/resources/images.xml  |  1 +
  gui/theme/portrait_hdpi/themes/font.xml       |  6 +-
@@ -18,7 +16,7 @@ Improve recovery display behavior, font handling, language resources, touch inpu
  minuitwrp/include/minuitwrp/truetype.hpp      |  2 +
  minuitwrp/truetype.cpp                        | 81 ++++++++++++----
  orangefox.mk                                  | 10 ++
- 11 files changed, 158 insertions(+), 125 deletions(-)
+ 9 files changed, 156 insertions(+), 123 deletions(-)
 
 diff --git a/gui/gui.cpp b/gui/gui.cpp
 index 71bbc967..4291f2aa 100644
@@ -169,31 +167,6 @@ index 71bbc967..4291f2aa 100644
  		key_status = KS_NONE;
  		touch_status = TS_NONE;
  #ifdef TW_USE_KEY_CODE_TOUCH_SYNC
-diff --git a/gui/theme/common/languages/ja_JP.xml b/gui/theme/common/languages/ja_JP.xml
-index 40d7d6e6..fc62815f 100644
---- a/gui/theme/common/languages/ja_JP.xml
-+++ b/gui/theme/common/languages/ja_JP.xml
-@@ -1,6 +1,6 @@
- <?xml version="1.0" encoding="UTF-8"?>
- <language>
--	<display>英語</display>
-+	<display>日本語</display>
- 
- 	<resources>
- 		<!-- Font overrides - only change these if your language requires special characters -->
-diff --git a/gui/theme/extra-languages/languages/zh_CN.xml b/gui/theme/extra-languages/languages/zh_CN.xml
-index cd4100f4..d1aca5b5 100644
---- a/gui/theme/extra-languages/languages/zh_CN.xml
-+++ b/gui/theme/extra-languages/languages/zh_CN.xml
-@@ -885,7 +885,7 @@
- 		<string name="theme_engine_update">是否应用更改并重新加载?</string>
- 		<string name="theme_engine_reset">重置主题并重新加载吗？</string>
- 		<string name="apply_btn">应用</string>
--		<string name="theme_hdr">自定义主题版本与 OrangeFox 版本不匹配。</string>
-+		<string name="theme_hdr">主题</string>
- 		
- 		<string name="font_small">小</string>
- 		<string name="font_norm">标准</string>
 diff --git a/gui/theme/portrait_hdpi/pages/customization.xml b/gui/theme/portrait_hdpi/pages/customization.xml
 index 3d5cc9b3..fed8df35 100644
 --- a/gui/theme/portrait_hdpi/pages/customization.xml
@@ -608,10 +581,10 @@ index d224fbb1..e15894cb 100644
  			FT_Get_Kerning(f->face, prev_idx, char_idx, FT_KERNING_DEFAULT, &delta);
  			total_w += delta.x >> 6;
 diff --git a/orangefox.mk b/orangefox.mk
-index 1f02b296..efb82ecd 100644
+index 85f0278f..41584793 100644
 --- a/orangefox.mk
 +++ b/orangefox.mk
-@@ -697,6 +697,16 @@ ifeq ($(FOX_ALLOW_EARLY_SETTINGS_LOAD),1)
+@@ -695,6 +695,16 @@ ifeq ($(FOX_ALLOW_EARLY_SETTINGS_LOAD),1)
      LOCAL_CFLAGS += -DFOX_ALLOW_EARLY_SETTINGS_LOAD='"1"'
  endif
  

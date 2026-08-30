@@ -1,3 +1,12 @@
+From db766c5172e5d02980d42db411ab3cf4eafc5f96 Mon Sep 17 00:00:00 2001
+From: NEESCHAL <231459343+NEESCHAL-3@users.noreply.github.com>
+Date: Sun, 30 Aug 2026 17:09:39 +0000
+Subject: [PATCH] build: fix OrangeFox recovery compression command
+
+---
+ core/Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
 diff --git a/core/Makefile b/core/Makefile
 index 89f5234..c6b9d88 100644
 --- a/core/Makefile
@@ -11,3 +20,6 @@ index 89f5234..c6b9d88 100644
    	INSTALLED_RECOVERYIMAGE_TARGET="$(INSTALLED_RECOVERYIMAGE_TARGET)" \
    	INSTALLED_BOOTIMAGE_TARGET="$(INSTALLED_BOOTIMAGE_TARGET)" \
    	BOARD_BOOTIMAGE_PARTITION_SIZE=$(BOARD_BOOTIMAGE_PARTITION_SIZE) \
+-- 
+2.43.0
+
