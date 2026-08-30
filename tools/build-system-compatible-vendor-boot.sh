@@ -5,6 +5,12 @@ DEVICE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 TOP_DIR="$(cd -- "${DEVICE_DIR}/../../.." && pwd -P)"
 PRODUCT_OUT="${1:-${OUT_DIR:-${TOP_DIR}/out}/target/product/rodin}"
 FIRMWARE_VARIANT="${RODIN_FIRMWARE_VARIANT:-india}"
+AVB_MODE="${RODIN_AVB_MODE:-enabled}"
+case "$AVB_MODE" in
+    enabled|disabled) ;;
+    *) echo "unsupported RODIN_AVB_MODE: $AVB_MODE (expected enabled or disabled)" >&2; exit 1 ;;
+esac
+
 
 case "${FIRMWARE_VARIANT}" in
     india)
@@ -139,6 +145,11 @@ if [ "$platform_module_count" -ne 244 ]; then
     exit 1
 fi
 
+if [ "$AVB_MODE" = "disabled" ]; then
+    fstab="${platform_root}/first_stage_ramdisk/fstab.mt6899"
+    sed -E -i "s/,avb_keys=[^,[:space:]]+//g; s/,avb=[^,[:space:]]+//g; s/,avb,/,/g; s/,avb$//g; s/,avb / /g" "$fstab"
+    if grep -qE "avb(=|,|$)|avb_keys=" "$fstab"; then echo "failed to remove first-stage AVB flags" >&2; exit 1; fi
+fi
 "$MKBOOTFS" -d "${PRODUCT_OUT}/system" "$platform_root" > "$platform_pruned_cpio"
 "$LZ4" -l -12 --favor-decSpeed -f "$platform_pruned_cpio" "$platform_pruned_lz4" >/dev/null
 
