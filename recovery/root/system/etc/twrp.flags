@@ -9,6 +9,7 @@
 
 # Boot
 /boot               emmc      /dev/block/by-name/boot                                               flags=display="boot";slotselect;backup=1;flashimg=1
+/init_boot          emmc      /dev/block/by-name/init_boot                                          flags=display="Init Boot";slotselect;backup=1;flashimg=1
 /vendor_boot        emmc      /dev/block/by-name/vendor_boot                                        flags=display="vendor_boot";slotselect;backup=1;flashimg=1
 /dtbo               emmc      /dev/block/by-name/dtbo                                               flags=display="dtbo";slotselect;backup=1;flashimg=1
 /vbmeta             emmc      /dev/block/by-name/vbmeta                                             flags=display="vbmeta";slotselect;backup=1;flashimg=1
@@ -57,7 +58,6 @@
 /pi_img             emmc      /dev/block/by-name/pi_img                                             flags=display="pi_img"
 
 # Removable Storage
-/external_sd        auto  /dev/block/mmcblk1p1  /dev/block/mmcblk0p1     flags=display="MicroSD Card";storage;wipeingui;removable
 /usb_otg            auto  /dev/block/sda1 /dev/block/sda /dev/block/sdd1 flags=display="USB-OTG";storage;wipeingui;removable
 
 # Flashable logical partitions
