@@ -16,7 +16,7 @@ case "${FIRMWARE_VARIANT}" in
     india)
         STOCK_RAMDISK="${DEVICE_DIR}/prebuilt/india/vendor_ramdisk00"
         STOCK_RAMDISK_SHA256="c1b5ad776c93f89c6bf227ffecbf21ff3338236833d424446b388bb9819587a6"
-        DEFAULT_OUTPUT_IMAGE="${PRODUCT_OUT}/OrangeFox-R12.0-NEESCHAL-rodin-india-system-compatible.img"
+        DEFAULT_OUTPUT_IMAGE="${PRODUCT_OUT}/OrangeFox-R12.0-NEESCHAL-rodin-HOS-AVB-ENABLED.img"
         ;;
     *)
         echo "unsupported RODIN_FIRMWARE_VARIANT: ${FIRMWARE_VARIANT} (expected india)" >&2

@@ -1,0 +1,4 @@
+androidboot.console=0
+androidboot.hypervisor.version=GenieZone
+androidboot.hypervisor.vm.supported=1
+androidboot.hypervisor.protected_vm.supported=1

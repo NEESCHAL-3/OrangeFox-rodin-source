@@ -77,7 +77,7 @@ check_file "${DEVICE_DIR}/manifests/device-blobs.sha256"
 check_file "${DEVICE_DIR}/manifests/orangefox-fox_14.1-pinned.xml"
 check_sha256 "${DEVICE_DIR}/patches/build-make/rodin-complete.patch" 8d7f88b979fd51280d52774ccc51205a4316f6160053a17210c246ca4944b18b
 check_sha256 "${DEVICE_DIR}/patches/bootable-recovery/rodin-complete.patch" ed4159968420deb6b10d12c201ca8097a91bfbef972eb29b67c583a4484cbb4b
-check_sha256 "${DEVICE_DIR}/manifests/device-blobs.sha256" d16e3521428abc8b005ee1f8e49811002c8492dbf2eb6e76bf23ef8c8c205fa9
+check_sha256 "${DEVICE_DIR}/manifests/device-blobs.sha256" ff7660194653363aac6d72f04102e439fe451832114c595c62bfde840cda8740
 
 if [[ "${RODIN_ALLOW_UNPINNED_SOURCE:-0}" != "1" ]]; then
     if ! python3 "${DEVICE_DIR}/tools/verify-source-manifest.py" "${TOP_DIR}" \
@@ -96,6 +96,10 @@ check_size "${DEVICE_DIR}/prebuilt/dtbo.img" 8388608
 check_size "${DEVICE_DIR}/prebuilt/dtb/mt6899-rodin.dtb" 444841
 check_sha256 "${DEVICE_DIR}/prebuilt/kernel" 55caa83bf1dd1ab5e34521f1faa18532a6110a065123577a1a62d80ee5178569
 check_sha256 "${DEVICE_DIR}/prebuilt/dtb/mt6899-rodin.dtb" 38369239c984fc191e36d043d19ccbea4c1cd09ee6c80f8646d9493f650a30ae
+check_size "${DEVICE_DIR}/prebuilt/aosp/vendor_ramdisk00" 15341278
+check_size "${DEVICE_DIR}/prebuilt/aosp/bootconfig" 149
+check_sha256 "${DEVICE_DIR}/prebuilt/aosp/vendor_ramdisk00" 44713e36fb3dc9ec6d50c71570a43be1fafe1260cd5cc090f565e670983bd0b3
+check_sha256 "${DEVICE_DIR}/prebuilt/aosp/bootconfig" 2545ea616b81794569f66d0fb40e9ae712446f52e4711d25bd9c1c683a5f93a1
 check_sha256 "${DEVICE_DIR}/prebuilt/dtbo.img" ccd008dc7336301b7cc6fab7b59400b3debd2866f055f085e61696dbc7c0f298
 check_size "${DEVICE_DIR}/prebuilt/india/vendor_ramdisk00" 29235084
 check_sha256 "${DEVICE_DIR}/prebuilt/india/vendor_ramdisk00" c1b5ad776c93f89c6bf227ffecbf21ff3338236833d424446b388bb9819587a6
