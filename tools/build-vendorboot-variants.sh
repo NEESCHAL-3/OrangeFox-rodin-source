@@ -14,6 +14,9 @@ HOS_DISABLED="${PRODUCT_OUT}/OrangeFox-R12.0-NEESCHAL-rodin-HOS-AVB-DISABLED.img
 AOSP_ENABLED="${PRODUCT_OUT}/OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-ENABLED.img"
 AOSP_DISABLED="${PRODUCT_OUT}/OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-DISABLED.img"
 
+CN_ENABLED="${PRODUCT_OUT}/OrangeFox-R12.0-NEESCHAL-rodin-CN-AVB-ENABLED.img"
+CN_DISABLED="${PRODUCT_OUT}/OrangeFox-R12.0-NEESCHAL-rodin-CN-AVB-DISABLED.img"
+
 for f in "$HOS_BUILDER" "$AOSP_BUILDER"; do
     test -x "$f" || {
         echo "missing builder: $f" >&2
@@ -42,19 +45,33 @@ echo "===== AOSP / AVB DISABLED ====="
 RODIN_AVB_MODE=disabled \
 "$AOSP_BUILDER" "$PRODUCT_OUT" "$AOSP_DISABLED"
 
+echo
+echo "===== CN / AVB ENABLED ====="
+RODIN_FIRMWARE_VARIANT=china \
+RODIN_AVB_MODE=enabled \
+"$HOS_BUILDER" "$PRODUCT_OUT" "$CN_ENABLED"
+
+echo
+echo "===== CN / AVB DISABLED ====="
+RODIN_FIRMWARE_VARIANT=china \
+RODIN_AVB_MODE=disabled \
+"$HOS_BUILDER" "$PRODUCT_OUT" "$CN_DISABLED"
+
 # Preserve the existing default behavior.
 cp -fp "$HOS_ENABLED" "${PRODUCT_OUT}/vendor_boot.img"
 
 echo
 echo "============================================================"
-echo " RODIN ORANGEFOX — FOUR VARIANTS COMPLETE"
+echo " RODIN ORANGEFOX — SIX VARIANTS COMPLETE"
 echo "============================================================"
 
 for image in \
     "$HOS_ENABLED" \
     "$HOS_DISABLED" \
     "$AOSP_ENABLED" \
-    "$AOSP_DISABLED"; do
+    "$AOSP_DISABLED" \
+    "$CN_ENABLED" \
+    "$CN_DISABLED"; do
     test -f "$image" || {
         echo "missing output: $image" >&2
         exit 1
