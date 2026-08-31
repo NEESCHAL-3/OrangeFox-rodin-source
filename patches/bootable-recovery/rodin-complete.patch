@@ -430,6 +430,20 @@ index 3d5cc9b3..fed8df35 100644
  						[ -d "%fox_theme_path%" ] &amp;&amp; rm -rf %fox_theme_path%;
  						[[ '%update_navbar%' = '1' ]] || exit;
  					else
+diff --git a/gui/theme/portrait_hdpi/pages/settings.xml b/gui/theme/portrait_hdpi/pages/settings.xml
+index db827849..b797164b 100644
+--- a/gui/theme/portrait_hdpi/pages/settings.xml
++++ b/gui/theme/portrait_hdpi/pages/settings.xml
+@@ -300,6 +300,9 @@
+ 					<condition var1="fox_disable_reflash_current" op="!=" var2="1"/>
+ 					<data variable="tw_auto_reflashtwrp"/>
+ 				</listitem>
++                            <listitem name="Auto-DFE (Disable Forced Encryption)">
++                                    <data variable="fox_reboot_forced_encryption_check"/>
++                            </listitem>
+ 				<listitem name="{@inject_twrp_chk}">
+ 					<condition var1="tw_has_injecttwrp" var2="1"/>
+ 					<data variable="tw_inject_after_zip"/>
 diff --git a/gui/theme/portrait_hdpi/resources/images.xml b/gui/theme/portrait_hdpi/resources/images.xml
 index 1d8dec09..cf763f95 100644
 --- a/gui/theme/portrait_hdpi/resources/images.xml
@@ -722,6 +736,68 @@ index d224fbb1..e15894cb 100644
  		{
  			FT_Get_Kerning(f->face, prev_idx, char_idx, FT_KERNING_DEFAULT, &delta);
  			total_w += delta.x >> 6;
+diff --git a/openrecoveryscript.cpp b/openrecoveryscript.cpp
+index ede99946..2a352f6c 100755
+--- a/openrecoveryscript.cpp
++++ b/openrecoveryscript.cpp
+@@ -42,6 +42,7 @@
+ #include <zlib.h>
+ 
+ #include "twrp-functions.hpp"
++#include "twrpRepacker.hpp"
+ #include "partitions.hpp"
+ #include "twcommon.h"
+ #include "openrecoveryscript.hpp"
+@@ -313,6 +314,26 @@ int OpenRecoveryScript::run_script_file(void) {
+ 					ret_val = 1;
+ 				else
+ 					gui_msg("done=Done.");
++			} else if (strcmp(command, "rodin_auto_dfe_test") == 0) {
++			#ifdef RODIN_RUNTIME_DTB_FIX
++				gui_print("Starting Rodin Auto-DFE dry-run...\n");
++
++				twrpRepacker dfe_test;
++
++				if (!dfe_test.Patch_Rodin_Auto_DFE(true)) {
++					gui_print_color(
++						"error",
++						"Auto-DFE DRY-RUN FAILED. Nothing was flashed.\n");
++					ret_val = 1;
++				} else {
++					gui_print_color(
++						"green",
++						"Auto-DFE DRY-RUN SUCCESS. Nothing was flashed.\n");
++				}
++			#else
++				gui_print("Rodin Auto-DFE unavailable.\n");
++				ret_val = 1;
++			#endif
+ 			} else if (strcmp(command, "set_active") == 0) {
+ 			#ifdef AB_OTA_UPDATER
+ 				string aSlot = PartitionManager.Get_Active_Slot_Suffix();
+diff --git a/orangefox.cpp b/orangefox.cpp
+index d171fe5e..e5c7ff50 100644
+--- a/orangefox.cpp
++++ b/orangefox.cpp
+@@ -1123,6 +1123,18 @@ void Fox_Post_Zip_Install(const int result)
+ 	// Run any custom script after completion of all ROM flashing processes
+ 	TWFunc::RunFoxScript("/system/bin/post_rom_flash_completion.sh", "");
+ 
++#ifdef RODIN_RUNTIME_DTB_FIX
++	if (DataManager::GetIntValue(FOX_DISABLE_FORCED_ENCRYPTION) == 1) {
++		twrpRepacker rodin_auto_dfe;
++
++		if (!rodin_auto_dfe.Patch_Rodin_Auto_DFE(false)) {
++			gui_print_color(
++				"warning",
++				"Auto-DFE failed. Target vendor_boot was not left partially patched.\\n");
++		}
++	}
++#endif
++
+ #ifdef OF_BLOCK_OPERATIONS_AFTER_ROM_FLASH
+ 	TWFunc::Fox_Property_Set("fox_block_operations_pending_reboot", "blocking");
+ 	gui_print_color("warning", "\n\nYou must now reboot OrangeFox - immediately!\n\nDo NOT attempt anything else, without first rebooting OrangeFox.\n");
 diff --git a/orangefox.mk b/orangefox.mk
 index 85f0278f..41584793 100644
 --- a/orangefox.mk
@@ -1178,29 +1254,326 @@ index 557283b1..5489027c 100755
  	if (ioctl(loop_fd, LOOP_SET_STATUS64, &info)) {
  		LOGERR("failed to mount loop: %s: %s\n", fileToMount.c_str(), strerror(errno));
 diff --git a/twrpRepacker.cpp b/twrpRepacker.cpp
-index ca3f8243..69c63738 100755
+index ca3f8243..99e93e97 100755
 --- a/twrpRepacker.cpp
 +++ b/twrpRepacker.cpp
-@@ -29,6 +29,430 @@
+@@ -29,6 +29,727 @@
  #include "variables.h"
  #include "gui/gui.hpp"
  
 +#ifdef RODIN_RUNTIME_DTB_FIX
 +#include <dirent.h>
 +#include <sys/stat.h>
++#include <fcntl.h>
++#include <unistd.h>
 +
++#include <cerrno>
++#include <algorithm>
++#include <cinttypes>
 +#include <cstdint>
 +#include <cstring>
 +#include <fstream>
 +#include <vector>
 +
 +#include <libfdt.h>
++#include <libavb/libavb.h>
++#include <openssl/sha.h>
 +#endif
 +
 +
 +#ifdef RODIN_RUNTIME_DTB_FIX
 +
 +namespace {
++
++static bool RefreshRodinVendorBootAvbHash(
++	const std::string& image_path) {
++
++	int fd = open(image_path.c_str(), O_RDWR | O_CLOEXEC);
++	if (fd < 0) {
++		LOGERR("Rodin AVB: cannot open %s: %s\n",
++			image_path.c_str(), strerror(errno));
++		return false;
++	}
++
++	auto fail = [&](const char* reason) {
++		LOGERR("Rodin AVB: %s\n", reason);
++		close(fd);
++		return false;
++	};
++
++	struct stat st {};
++	if (fstat(fd, &st) != 0 ||
++	    st.st_size < static_cast<off_t>(sizeof(AvbFooter))) {
++		return fail("invalid vendor_boot image size");
++	}
++
++	AvbFooter footer_raw {};
++	if (pread(fd,
++	          &footer_raw,
++	          sizeof(footer_raw),
++	          st.st_size - sizeof(footer_raw)) !=
++	    static_cast<ssize_t>(sizeof(footer_raw))) {
++		return fail("unable to read AVB footer");
++	}
++
++	AvbFooter footer {};
++	if (!avb_footer_validate_and_byteswap(
++			&footer_raw, &footer)) {
++		return fail("invalid AVB footer");
++	}
++
++	if (footer.vbmeta_size < sizeof(AvbVBMetaImageHeader) ||
++	    footer.vbmeta_offset > static_cast<uint64_t>(st.st_size) ||
++	    footer.vbmeta_size >
++	        static_cast<uint64_t>(st.st_size) - footer.vbmeta_offset) {
++		return fail("invalid VBMeta location");
++	}
++
++	std::vector<uint8_t> vbmeta(footer.vbmeta_size);
++
++	if (pread(fd,
++	          vbmeta.data(),
++	          vbmeta.size(),
++	          footer.vbmeta_offset) !=
++	    static_cast<ssize_t>(vbmeta.size())) {
++		return fail("unable to read VBMeta");
++	}
++
++	const auto* header_raw =
++		reinterpret_cast<const AvbVBMetaImageHeader*>(
++			vbmeta.data());
++
++	if (memcmp(header_raw->magic, AVB_MAGIC, AVB_MAGIC_LEN) != 0) {
++		return fail("invalid VBMeta magic");
++	}
++
++	AvbVBMetaImageHeader header {};
++	avb_vbmeta_image_header_to_host_byte_order(
++		header_raw, &header);
++
++	if (header.algorithm_type != AVB_ALGORITHM_TYPE_NONE) {
++		return fail(
++			"vendor_boot VBMeta is signed; refusing to modify it");
++	}
++
++	const uint64_t aux_start =
++		sizeof(AvbVBMetaImageHeader) +
++		header.authentication_data_block_size;
++
++	if (aux_start > vbmeta.size() ||
++	    header.descriptors_offset >
++	        vbmeta.size() - aux_start) {
++		return fail("invalid AVB auxiliary block");
++	}
++
++	const uint64_t desc_start =
++		aux_start + header.descriptors_offset;
++
++	if (header.descriptors_size >
++	    vbmeta.size() - desc_start) {
++		return fail("invalid AVB descriptor region");
++	}
++
++	uint64_t offset = desc_start;
++	const uint64_t desc_end =
++		desc_start + header.descriptors_size;
++
++	bool patched = false;
++
++	while (offset < desc_end) {
++		if (desc_end - offset < sizeof(AvbDescriptor)) {
++			return fail("truncated AVB descriptor");
++		}
++
++		const auto* raw_desc =
++			reinterpret_cast<const AvbDescriptor*>(
++				vbmeta.data() + offset);
++
++		AvbDescriptor desc {};
++		if (!avb_descriptor_validate_and_byteswap(
++				raw_desc, &desc)) {
++			return fail("invalid AVB descriptor");
++		}
++
++		const uint64_t total =
++			sizeof(AvbDescriptor) +
++			desc.num_bytes_following;
++
++		if (total < sizeof(AvbDescriptor) ||
++		    total > desc_end - offset) {
++			return fail("invalid AVB descriptor size");
++		}
++
++		if (desc.tag == AVB_DESCRIPTOR_TAG_HASH) {
++			if (total < sizeof(AvbHashDescriptor)) {
++				return fail("truncated AVB hash descriptor");
++			}
++
++			const auto* raw_hash =
++				reinterpret_cast<const AvbHashDescriptor*>(
++					vbmeta.data() + offset);
++
++			AvbHashDescriptor hash {};
++			if (!avb_hash_descriptor_validate_and_byteswap(
++					raw_hash, &hash)) {
++				return fail("invalid AVB hash descriptor");
++			}
++
++			const uint64_t variable_size =
++				static_cast<uint64_t>(
++					hash.partition_name_len) +
++				hash.salt_len +
++				hash.digest_len;
++
++			if (sizeof(AvbHashDescriptor) +
++			        variable_size >
++			    total) {
++				return fail(
++					"invalid AVB hash descriptor payload");
++			}
++
++			uint8_t* variable =
++				vbmeta.data() +
++				offset +
++				sizeof(AvbHashDescriptor);
++
++			std::string partition_name(
++				reinterpret_cast<char*>(variable),
++				hash.partition_name_len);
++
++			if (partition_name == "vendor_boot") {
++				if (patched) {
++					return fail(
++						"multiple vendor_boot hash descriptors");
++				}
++
++				if (strncmp(
++					    reinterpret_cast<const char*>(
++						    hash.hash_algorithm),
++					    "sha256",
++					    sizeof(hash.hash_algorithm)) != 0) {
++					return fail(
++						"unsupported vendor_boot hash algorithm");
++				}
++
++				if (hash.digest_len !=
++				    SHA256_DIGEST_LENGTH) {
++					return fail(
++						"unexpected vendor_boot digest length");
++				}
++
++				if (hash.image_size >
++				    static_cast<uint64_t>(st.st_size)) {
++					return fail(
++						"vendor_boot hash size exceeds image");
++				}
++
++				const uint8_t* salt =
++					variable +
++					hash.partition_name_len;
++
++				uint8_t* digest =
++					variable +
++					hash.partition_name_len +
++					hash.salt_len;
++
++				SHA256_CTX sha {};
++				if (SHA256_Init(&sha) != 1)
++					return fail(
++						"SHA256_Init failed");
++
++				if (hash.salt_len != 0 &&
++				    SHA256_Update(
++					    &sha,
++					    salt,
++					    hash.salt_len) != 1) {
++					return fail(
++						"unable to hash AVB salt");
++				}
++
++				constexpr size_t kBufferSize =
++					1024 * 1024;
++				std::vector<uint8_t> buffer(
++					kBufferSize);
++
++				uint64_t remaining =
++					hash.image_size;
++				off_t image_offset = 0;
++
++				while (remaining != 0) {
++					const size_t want =
++						static_cast<size_t>(
++							std::min<uint64_t>(
++								remaining,
++								buffer.size()));
++
++					const ssize_t got =
++						pread(
++							fd,
++							buffer.data(),
++							want,
++							image_offset);
++
++					if (got <= 0)
++						return fail(
++							"unable to read vendor_boot payload");
++
++					if (SHA256_Update(
++						    &sha,
++						    buffer.data(),
++						    got) != 1)
++						return fail(
++							"unable to hash vendor_boot payload");
++
++					image_offset += got;
++					remaining -= got;
++				}
++
++				uint8_t calculated[
++					SHA256_DIGEST_LENGTH];
++
++				if (SHA256_Final(
++					    calculated,
++					    &sha) != 1)
++					return fail(
++						"SHA256_Final failed");
++
++				memcpy(
++					digest,
++					calculated,
++					sizeof(calculated));
++
++				patched = true;
++
++				LOGINFO(
++					"Rodin AVB: refreshed vendor_boot SHA-256 descriptor "
++					"(image_size=%" PRIu64 ", salt_len=%u)\n",
++					hash.image_size,
++					hash.salt_len);
++			}
++		}
++
++		offset += total;
++	}
++
++	if (!patched)
++		return fail(
++			"vendor_boot SHA-256 descriptor not found");
++
++	if (pwrite(fd,
++	           vbmeta.data(),
++	           vbmeta.size(),
++	           footer.vbmeta_offset) !=
++	    static_cast<ssize_t>(vbmeta.size())) {
++		return fail("unable to write refreshed VBMeta");
++	}
++
++	if (fsync(fd) != 0)
++		return fail("fsync failed");
++
++	close(fd);
++	return true;
++}
 +
 +constexpr unsigned char kRodinMtkContainerMagic[4] = {
 +	0xd7, 0xb7, 0xab, 0x1e
@@ -1612,7 +1985,7 @@ index ca3f8243..69c63738 100755
  bool twrpRepacker::Prepare_Empty_Folder(const std::string& Folder) {
  	if (TWFunc::Path_Exists(Folder))
  		TWFunc::removeDir(Folder, false);
-@@ -125,7 +549,7 @@ static bool is_AB_for_repacker() {
+@@ -125,7 +846,7 @@ static bool is_AB_for_repacker() {
  	return !slot.empty();
  }
  
@@ -1621,7 +1994,7 @@ index ca3f8243..69c63738 100755
  	if (!TWFunc::Path_Exists(TWFunc::Get_MagiskBoot())) {
  		LOGERR("Image repacking tool not present in this TWRP build!");
  		return false;
-@@ -172,11 +596,29 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
+@@ -172,11 +893,29 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
  	}
  	if (!Backup_Image_For_Repack(part, REPACK_ORIG_DIR, Repack_Options.Backup_First, gui_lookup("repack", "Repack")))
  		return false;
@@ -1653,7 +2026,7 @@ index ca3f8243..69c63738 100755
  	} else {
  		gui_msg(Msg("unpacking_image=Unpacking {1}...")(Target_Image));
  		image_ramdisk_format = Unpack_Image(Target_Image, REPACK_NEW_DIR, true);
-@@ -195,7 +637,8 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
+@@ -195,7 +934,8 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
  			LOGERR("Failed to copy ramdisk\n");
  			return false;
  		}
@@ -1663,7 +2036,29 @@ index ca3f8243..69c63738 100755
  			if (TWFunc::copy_file(Target_Image, REPACK_ORIG_DIR + ramdisk_cpio, 0644)) {
  				LOGERR("Failed to copy ramdisk\n");
  				return false;
-@@ -254,13 +697,15 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
+@@ -246,6 +986,21 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
+ 		return false;
+ 	}
+ 
++#ifdef RODIN_RUNTIME_DTB_FIX
++	if (is_vendor_boot) {
++		const std::string repacked_image =
++			path + "new-boot.img";
++
++		if (!RefreshRodinVendorBootAvbHash(repacked_image)) {
++			LOGERR("Rodin vendor_boot AVB hash refresh failed; refusing to flash.\n");
++			gui_print_color(
++				"error",
++				"vendor_boot AVB hash repair failed. Image was NOT flashed.\n");
++			return false;
++		}
++	}
++#endif
++
+ 	DataManager::SetProgress(.75);
+ 	std::string file = "new-boot.img";
+ 	DataManager::SetValue("tw_flash_partition", dest_partition + ";");
+@@ -254,13 +1009,15 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
  		return false;
  	}
  	DataManager::SetProgress(1);
@@ -1680,7 +2075,7 @@ index ca3f8243..69c63738 100755
  		DataManager::SetProgress(.25);
  		PartitionManager.Update_System_Details();
  #if defined(OF_AB_DEVICE_WITH_RECOVERY_PARTITION) || defined(FOX_VENDOR_BOOT_RECOVERY) || defined(BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT)
-@@ -313,16 +758,21 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
+@@ -313,16 +1070,541 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
  	TWFunc::removeDir(REPACK_NEW_DIR, false);
  	if (dest_partition == "/boot")
  		gui_msg(Msg(msg::kWarning, "repack_overwrite_warning=If device was previously rooted, then root has been overwritten and will need to be reinstalled."));
@@ -1700,6 +2095,526 @@ index ca3f8243..69c63738 100755
  	return true;
  }
  
++
++bool twrpRepacker::Patch_Rodin_Auto_DFE(bool dry_run) {
++#ifndef RODIN_RUNTIME_DTB_FIX
++	return false;
++#else
++	if (!dry_run &&
++	    DataManager::GetIntValue(FOX_DISABLE_FORCED_ENCRYPTION) != 1)
++		return true;
++
++	if (!dry_run &&
++	    DataManager::GetIntValue(TW_IS_ENCRYPTED) == 1) {
++		gui_print_color(
++			"warning",
++			"Auto-DFE: Format Data once before first use.\n");
++		return false;
++	}
++
++	std::string slot =
++		android::base::GetProperty("ro.boot.slot_suffix", "");
++
++	if (slot.empty())
++		slot = android::base::GetProperty("ro.boot.slot", "");
++
++	std::string target;
++
++	if (slot == "_a" || slot == "a")
++		target = "_b";
++	else if (slot == "_b" || slot == "b")
++		target = "_a";
++	else {
++		LOGERR("Auto-DFE: cannot determine slot.\n");
++		return false;
++	}
++
++	const std::string block =
++		"/dev/block/by-name/vendor_boot" + target;
++
++	const std::string work = "/tmp/rodin-auto-dfe";
++	const std::string original = work + "/original.img";
++	const std::string output = work + "/new-vendor_boot.img";
++	const std::string lz4_in = work + "/platform.lz4";
++	const std::string cpio = work + "/platform.cpio";
++	const std::string fstab = work + "/fstab.mt6899";
++	const std::string lz4_new = work + "/platform-new.lz4";
++
++	const std::string mb = TWFunc::Get_MagiskBoot();
++	const std::string lz4 = "/system/bin/lz4";
++
++	std::string result;
++
++	gui_print("Auto-DFE: target %s\n", block.c_str());
++
++	if (!TWFunc::Path_Exists(block) ||
++	    !TWFunc::Path_Exists(mb) ||
++	    !TWFunc::Path_Exists(lz4)) {
++		LOGERR("Auto-DFE: required file/tool missing.\n");
++		return false;
++	}
++
++	TWFunc::Exec_Cmd(
++		"rm -rf " + work + " && mkdir -p " + work,
++		result);
++
++	if (TWFunc::Exec_Cmd(
++			"dd if=" + block +
++			" of=" + original +
++			" bs=4M",
++			result) != 0) {
++		LOGERR("Auto-DFE: vendor_boot copy failed.\n");
++		return false;
++	}
++
++	int fd = open(original.c_str(), O_RDONLY | O_CLOEXEC);
++	if (fd < 0)
++		return false;
++
++	struct stat image_stat {};
++	if (fstat(fd, &image_stat) != 0) {
++		close(fd);
++		return false;
++	}
++
++	std::vector<uint8_t> header(4096);
++
++	if (pread(fd, header.data(), header.size(), 0) !=
++	    static_cast<ssize_t>(header.size())) {
++		close(fd);
++		return false;
++	}
++
++	if (memcmp(header.data(), "VNDRBOOT", 8) != 0) {
++		close(fd);
++		LOGERR("Auto-DFE: invalid vendor_boot magic.\n");
++		return false;
++	}
++
++	auto le32 = [](const uint8_t* p) -> uint32_t {
++		return static_cast<uint32_t>(p[0]) |
++		       (static_cast<uint32_t>(p[1]) << 8) |
++		       (static_cast<uint32_t>(p[2]) << 16) |
++		       (static_cast<uint32_t>(p[3]) << 24);
++	};
++
++	const uint32_t header_version = le32(header.data() + 8);
++	const uint32_t page_size = le32(header.data() + 12);
++	const uint32_t ramdisk_size = le32(header.data() + 24);
++	const uint32_t dtb_size = le32(header.data() + 2100);
++	const uint32_t table_size = le32(header.data() + 2112);
++	const uint32_t entry_num = le32(header.data() + 2116);
++	const uint32_t entry_size = le32(header.data() + 2120);
++
++	if (header_version != 4 ||
++	    page_size == 0 ||
++	    entry_size < 12 ||
++	    entry_num == 0) {
++		close(fd);
++		LOGERR("Auto-DFE: unsupported vendor_boot layout.\n");
++		return false;
++	}
++
++	auto align_up = [](uint64_t value, uint64_t alignment) {
++		return ((value + alignment - 1) / alignment) * alignment;
++	};
++
++	const uint64_t ramdisk_offset = page_size;
++
++	const uint64_t dtb_offset =
++		ramdisk_offset + align_up(ramdisk_size, page_size);
++
++	const uint64_t table_offset =
++		dtb_offset + align_up(dtb_size, page_size);
++
++	if (static_cast<uint64_t>(entry_num) * entry_size > table_size ||
++	    table_offset + table_size >
++		    static_cast<uint64_t>(image_stat.st_size)) {
++		close(fd);
++		LOGERR("Auto-DFE: invalid vendor ramdisk table.\n");
++		return false;
++	}
++
++	std::vector<uint8_t> table(table_size);
++
++	if (pread(fd, table.data(), table.size(), table_offset) !=
++	    static_cast<ssize_t>(table.size())) {
++		close(fd);
++		return false;
++	}
++
++	uint32_t platform_size = 0;
++	uint32_t platform_offset = 0;
++	bool platform_found = false;
++
++	for (uint32_t i = 0; i < entry_num; ++i) {
++		const uint8_t* e =
++			table.data() + static_cast<size_t>(i) * entry_size;
++
++		const uint32_t size = le32(e);
++		const uint32_t offset = le32(e + 4);
++		const uint32_t type = le32(e + 8);
++
++		if (type == 1) {
++			if (platform_found ||
++			    static_cast<uint64_t>(offset) + size > ramdisk_size) {
++				close(fd);
++				LOGERR("Auto-DFE: invalid PLATFORM fragment.\n");
++				return false;
++			}
++
++			platform_size = size;
++			platform_offset = offset;
++			platform_found = true;
++		}
++	}
++
++	if (!platform_found || platform_size < 8) {
++		close(fd);
++		LOGERR("Auto-DFE: PLATFORM fragment missing.\n");
++		return false;
++	}
++
++	const uint64_t platform_absolute =
++		ramdisk_offset + platform_offset;
++
++	std::vector<uint8_t> platform(platform_size);
++
++	if (pread(
++			fd,
++			platform.data(),
++			platform.size(),
++			platform_absolute) !=
++	    static_cast<ssize_t>(platform.size())) {
++		close(fd);
++		return false;
++	}
++
++	close(fd);
++
++	const uint8_t legacy_magic[4] = {
++		0x02, 0x21, 0x4c, 0x18
++	};
++
++	if (memcmp(platform.data(), legacy_magic, 4) != 0) {
++		LOGERR("Auto-DFE: PLATFORM is not legacy LZ4.\n");
++		return false;
++	}
++
++	size_t pos = 4;
++	size_t stream_end = 0;
++
++	while (pos + 4 <= platform.size()) {
++		const uint32_t block_size =
++			le32(platform.data() + pos);
++
++		pos += 4;
++
++		if (block_size == 0) {
++			stream_end = pos;
++			break;
++		}
++
++		if (block_size > platform.size() - pos) {
++			LOGERR("Auto-DFE: malformed PLATFORM LZ4.\n");
++			return false;
++		}
++
++		pos += block_size;
++	}
++
++	if (stream_end == 0) {
++		LOGERR("Auto-DFE: PLATFORM LZ4 end marker missing.\n");
++		return false;
++	}
++
++	{
++		std::ofstream out(
++			lz4_in,
++			std::ios::binary | std::ios::trunc);
++
++		if (!out)
++			return false;
++
++		out.write(
++			reinterpret_cast<const char*>(platform.data()),
++			stream_end);
++
++		if (!out)
++			return false;
++	}
++
++	/*
++	 * Rodin stock legacy-LZ4 returns a decoder error after already
++	 * producing the valid CPIO. Validate output rather than exit code.
++	 */
++	TWFunc::Exec_Cmd(
++		lz4 + " -d " + lz4_in + " " + cpio,
++		result);
++
++	struct stat cpio_stat {};
++	if (stat(cpio.c_str(), &cpio_stat) != 0 ||
++	    cpio_stat.st_size <= 0) {
++		LOGERR("Auto-DFE: PLATFORM decompression failed.\n");
++		return false;
++	}
++
++	const std::vector<std::string> candidates = {
++		"first_stage_ramdisk/fstab.mt6899",
++		"first_stage_ramdisk/system/etc/fstab.mt6899"
++	};
++
++	std::string fstab_entry;
++
++	for (const auto& candidate : candidates) {
++		if (TWFunc::Exec_Cmd(
++				"cd " + work + " && " +
++				mb +
++				" cpio platform.cpio \"exists " +
++				candidate + "\"",
++				result) == 0) {
++			fstab_entry = candidate;
++			break;
++		}
++	}
++
++	if (fstab_entry.empty()) {
++		LOGERR("Auto-DFE: fstab.mt6899 missing.\n");
++		return false;
++	}
++
++	if (TWFunc::Exec_Cmd(
++			"cd " + work + " && " +
++			mb +
++			" cpio platform.cpio \"extract " +
++			fstab_entry + " fstab.mt6899\"",
++			result) != 0) {
++		LOGERR("Auto-DFE: fstab extract failed.\n");
++		return false;
++	}
++
++	std::ifstream in(fstab);
++	if (!in)
++		return false;
++
++	std::vector<std::string> lines;
++	std::string line;
++
++	bool userdata_found = false;
++	bool changed = false;
++
++	auto remove_flag =
++		[&](std::string& value, const std::string& key) {
++			size_t p = 0;
++
++			while ((p = value.find(key, p)) != std::string::npos) {
++				size_t begin = p;
++
++				size_t finish =
++					value.find_first_of(", \t\r\n", p);
++
++				if (finish == std::string::npos)
++					finish = value.size();
++
++				if (begin > 0 && value[begin - 1] == ',')
++					--begin;
++				else if (finish < value.size() &&
++					 value[finish] == ',')
++					++finish;
++
++				value.erase(begin, finish - begin);
++				changed = true;
++				p = begin;
++			}
++		};
++
++	while (std::getline(in, line)) {
++		if (line.find("/dev/block/by-name/userdata") !=
++			    std::string::npos &&
++		    line.find("/data") != std::string::npos) {
++
++			userdata_found = true;
++
++			remove_flag(line, "fileencryption=");
++			remove_flag(line, "keydirectory=");
++			remove_flag(line, "forceencrypt=");
++			remove_flag(line, "forcefdeorfbe=");
++		}
++
++		lines.push_back(line);
++	}
++
++	in.close();
++
++	if (!userdata_found) {
++		LOGERR("Auto-DFE: userdata fstab row missing.\n");
++		return false;
++	}
++
++	if (!changed) {
++		gui_print("Auto-DFE: encryption already disabled.\n");
++		return true;
++	}
++
++	{
++		std::ofstream out(fstab, std::ios::trunc);
++
++		if (!out)
++			return false;
++
++		for (const auto& current : lines)
++			out << current << '\n';
++	}
++
++	if (TWFunc::Exec_Cmd(
++			"cd " + work + " && " +
++			mb +
++			" cpio platform.cpio \"add 0644 " +
++			fstab_entry + " fstab.mt6899\"",
++			result) != 0) {
++		LOGERR("Auto-DFE: CPIO update failed.\n");
++		return false;
++	}
++
++	/*
++	 * Same format used by the working Rodin platform ramdisk.
++	 */
++	TWFunc::Exec_Cmd(
++		lz4 + " -l -12 " + cpio + " " + lz4_new,
++		result);
++
++	struct stat new_lz4_stat {};
++
++	if (stat(lz4_new.c_str(), &new_lz4_stat) != 0 ||
++	    new_lz4_stat.st_size <= 0 ||
++	    static_cast<uint64_t>(new_lz4_stat.st_size) >
++		    platform_size) {
++		LOGERR("Auto-DFE: rebuilt PLATFORM does not fit.\n");
++		return false;
++	}
++
++	std::vector<uint8_t> new_platform(
++		static_cast<size_t>(new_lz4_stat.st_size));
++
++	{
++		std::ifstream input(lz4_new, std::ios::binary);
++
++		if (!input)
++			return false;
++
++		input.read(
++			reinterpret_cast<char*>(new_platform.data()),
++			new_platform.size());
++
++		if (!input)
++			return false;
++	}
++
++	if (TWFunc::Exec_Cmd(
++			"cp -f " + original + " " + output,
++			result) != 0)
++		return false;
++
++	int out_fd = open(
++		output.c_str(),
++		O_RDWR | O_CLOEXEC);
++
++	if (out_fd < 0)
++		return false;
++
++	if (pwrite(
++			out_fd,
++			new_platform.data(),
++			new_platform.size(),
++			platform_absolute) !=
++	    static_cast<ssize_t>(new_platform.size())) {
++		close(out_fd);
++		return false;
++	}
++
++	std::vector<uint8_t> zeroes(1024 * 1024, 0);
++
++	uint64_t pad =
++		platform_size - new_platform.size();
++
++	uint64_t pad_offset =
++		platform_absolute + new_platform.size();
++
++	while (pad != 0) {
++		const size_t chunk =
++			static_cast<size_t>(
++				std::min<uint64_t>(
++					pad,
++					zeroes.size()));
++
++		if (pwrite(
++				out_fd,
++				zeroes.data(),
++				chunk,
++				pad_offset) !=
++		    static_cast<ssize_t>(chunk)) {
++			close(out_fd);
++			return false;
++		}
++
++		pad -= chunk;
++		pad_offset += chunk;
++	}
++
++	if (fsync(out_fd) != 0) {
++		close(out_fd);
++		return false;
++	}
++
++	close(out_fd);
++
++	if (!RefreshRodinVendorBootAvbHash(output)) {
++		LOGERR("Auto-DFE: AVB refresh failed.\n");
++		return false;
++	}
++
++	if (dry_run) {
++		if (TWFunc::Exec_Cmd(
++				"cp -f " + output +
++				" /tmp/rodin-auto-dfe-test.img",
++				result) != 0)
++			return false;
++
++		gui_print_color(
++			"green",
++			"Auto-DFE DRY-RUN PASS. Nothing was flashed.\n");
++
++		return true;
++	}
++
++	PartitionManager.Unlock_Block_Partitions();
++
++	if (TWFunc::Exec_Cmd(
++			"dd if=" + output +
++			" of=" + block +
++			" bs=4M && sync",
++			result) != 0) {
++
++		LOGERR("Auto-DFE: write failed, restoring original.\n");
++
++		TWFunc::Exec_Cmd(
++			"dd if=" + original +
++			" of=" + block +
++			" bs=4M && sync",
++			result);
++
++		return false;
++	}
++
++	gui_print_color(
++		"green",
++		"Auto-DFE: forced encryption disabled on %s.\n",
++		target.c_str());
++
++	return true;
++#endif
++}
++
  bool twrpRepacker::Flash_Current_Twrp() {
 -#ifndef OF_RECOVERY_AB_FULL_REFLASH_RAMDISK
 +#if !defined(OF_RECOVERY_AB_FULL_REFLASH_RAMDISK) && \
@@ -1708,7 +2623,7 @@ index ca3f8243..69c63738 100755
  	// A/B with dedicated recovery partition
  	std::string slot = android::base::GetProperty("ro.boot.slot_suffix", "");
  	if (slot.empty())
-@@ -397,8 +847,45 @@ bool twrpRepacker::Flash_Current_Twrp() {
+@@ -397,8 +1679,45 @@ bool twrpRepacker::Flash_Current_Twrp() {
  		gui_msg(Msg(msg::kError, "create_ramdisk_error=failed to create ramdisk to flash."));
  		return false;
  	}
@@ -1758,7 +2673,7 @@ index ca3f8243..69c63738 100755
 +#endif
  }
 diff --git a/twrpRepacker.hpp b/twrpRepacker.hpp
-index e71f3dcb..1caacfd0 100755
+index e71f3dcb..0f394b69 100755
 --- a/twrpRepacker.hpp
 +++ b/twrpRepacker.hpp
 @@ -27,6 +27,7 @@ enum Repack_Type {
@@ -1769,12 +2684,13 @@ index e71f3dcb..1caacfd0 100755
  };
  
  struct Repack_Options_struct {
-@@ -40,7 +41,7 @@ class twrpRepacker {
+@@ -40,7 +41,8 @@ class twrpRepacker {
      public:
          bool Backup_Image_For_Repack(TWPartition* Part, const std::string& Temp_Folder_Destination, const bool Create_Backup, const std::string& Backup_Name); // Prepares an image for repacking by unpacking it to the temp folder destination
          std::string Unpack_Image(const std::string& Source_Path, const std::string& Temp_Folder_Destination, const bool Copy_Source, const bool Create_Destination = true); // Prepares an image for repacking by unpacking it to the temp folder destination and return the ramdisk format
 -        bool Repack_Image_And_Flash(const std::string& Target_Image, const struct Repack_Options_struct& Repack_Options); // Repacks the boot image with a new kernel or a new ramdisk
 +        bool Repack_Image_And_Flash(const std::string& Target_Image, const struct Repack_Options_struct& Repack_Options, bool Flash_Both_Slots = true, bool Patch_Rodin_Usb_Dtb = false); // Repacks the boot image with a new kernel or a new ramdisk
++        bool Patch_Rodin_Auto_DFE(bool dry_run = false);
          bool Flash_Current_Twrp();
      private:
      	bool Prepare_Empty_Folder(const std::string& Folder); // Creates an empty folder at Folder. If the folder already exists, the folder is deleted, then created
