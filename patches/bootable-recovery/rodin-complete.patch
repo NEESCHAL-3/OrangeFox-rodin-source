@@ -1254,7 +1254,7 @@ index 557283b1..5489027c 100755
  	if (ioctl(loop_fd, LOOP_SET_STATUS64, &info)) {
  		LOGERR("failed to mount loop: %s: %s\n", fileToMount.c_str(), strerror(errno));
 diff --git a/twrpRepacker.cpp b/twrpRepacker.cpp
-index ca3f8243..99e93e97 100755
+index ca3f8243..d06803e3 100755
 --- a/twrpRepacker.cpp
 +++ b/twrpRepacker.cpp
 @@ -29,6 +29,727 @@
@@ -2075,7 +2075,7 @@ index ca3f8243..99e93e97 100755
  		DataManager::SetProgress(.25);
  		PartitionManager.Update_System_Details();
  #if defined(OF_AB_DEVICE_WITH_RECOVERY_PARTITION) || defined(FOX_VENDOR_BOOT_RECOVERY) || defined(BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT)
-@@ -313,16 +1070,541 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
+@@ -313,16 +1070,542 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
  	TWFunc::removeDir(REPACK_NEW_DIR, false);
  	if (dest_partition == "/boot")
  		gui_msg(Msg(msg::kWarning, "repack_overwrite_warning=If device was previously rooted, then root has been overwritten and will need to be reinstalled."));
@@ -2108,8 +2108,9 @@ index ca3f8243..99e93e97 100755
 +	    DataManager::GetIntValue(TW_IS_ENCRYPTED) == 1) {
 +		gui_print_color(
 +			"warning",
-+			"Auto-DFE: Format Data once before first use.\n");
-+		return false;
++			"Auto-DFE: existing /data is still encrypted.\n"
++			"Auto-DFE will patch the newly installed ROM, but you must "
++			"Format Data once before booting it for the first time.\n");
 +	}
 +
 +	std::string slot =
@@ -2623,7 +2624,7 @@ index ca3f8243..99e93e97 100755
  	// A/B with dedicated recovery partition
  	std::string slot = android::base::GetProperty("ro.boot.slot_suffix", "");
  	if (slot.empty())
-@@ -397,8 +1679,45 @@ bool twrpRepacker::Flash_Current_Twrp() {
+@@ -397,8 +1680,45 @@ bool twrpRepacker::Flash_Current_Twrp() {
  		gui_msg(Msg(msg::kError, "create_ramdisk_error=failed to create ramdisk to flash."));
  		return false;
  	}

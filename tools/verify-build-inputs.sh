@@ -76,7 +76,7 @@ check_file "${DEVICE_DIR}/patches/build-make/rodin-complete.patch"
 check_file "${DEVICE_DIR}/manifests/device-blobs.sha256"
 check_file "${DEVICE_DIR}/manifests/orangefox-fox_14.1-pinned.xml"
 check_sha256 "${DEVICE_DIR}/patches/build-make/rodin-complete.patch" 8d7f88b979fd51280d52774ccc51205a4316f6160053a17210c246ca4944b18b
-check_sha256 "${DEVICE_DIR}/patches/bootable-recovery/rodin-complete.patch" dc831228c8986f388c6df1604ca289d96ce7a5146ab820726f730126b352845d
+check_sha256 "${DEVICE_DIR}/patches/bootable-recovery/rodin-complete.patch" 2139f65744aa6773132b149c80adc5ff6596a67269029cd57935f8b3c076c4e0
 check_sha256 "${DEVICE_DIR}/manifests/device-blobs.sha256" ff7660194653363aac6d72f04102e439fe451832114c595c62bfde840cda8740
 
 if [[ "${RODIN_ALLOW_UNPINNED_SOURCE:-0}" != "1" ]]; then
