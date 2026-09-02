@@ -11,8 +11,8 @@ fail() {
 }
 
 case "${RODIN_FIRMWARE_VARIANT:-india}" in
-    india) ;;
-    *) fail "unsupported RODIN_FIRMWARE_VARIANT: ${RODIN_FIRMWARE_VARIANT} (expected india)" ;;
+    india|china) ;;
+    *) fail "unsupported RODIN_FIRMWARE_VARIANT: ${RODIN_FIRMWARE_VARIANT:-<unset>} (expected india or china)" ;;
 esac
 
 for command_name in bash cut file git grep python3 sed sha256sum sort stat; do
@@ -73,10 +73,14 @@ check_contains() {
 [[ -f "${TOP_DIR}/build/envsetup.sh" ]] || fail "not an OrangeFox source root: ${TOP_DIR}"
 check_file "${DEVICE_DIR}/patches/bootable-recovery/rodin-complete.patch"
 check_file "${DEVICE_DIR}/patches/build-make/rodin-complete.patch"
+check_file "${DEVICE_DIR}/patches/hardware-interfaces/rodin-fastbootd-bootcontrol-nonblocking.patch"
+check_file "${DEVICE_DIR}/patches/system-core/rodin-fastbootd-optional-hals-nonblocking.patch"
 check_file "${DEVICE_DIR}/manifests/device-blobs.sha256"
 check_file "${DEVICE_DIR}/manifests/orangefox-fox_14.1-pinned.xml"
 check_sha256 "${DEVICE_DIR}/patches/build-make/rodin-complete.patch" 8d7f88b979fd51280d52774ccc51205a4316f6160053a17210c246ca4944b18b
 check_sha256 "${DEVICE_DIR}/patches/bootable-recovery/rodin-complete.patch" 2139f65744aa6773132b149c80adc5ff6596a67269029cd57935f8b3c076c4e0
+check_sha256 "${DEVICE_DIR}/patches/hardware-interfaces/rodin-fastbootd-bootcontrol-nonblocking.patch" e10f789766f359d5d4b91d2fa7ee8418d5c39694f7c914d5cc02c6aa533755b8
+check_sha256 "${DEVICE_DIR}/patches/system-core/rodin-fastbootd-optional-hals-nonblocking.patch" 740b10ad8cae477e8d387406b61594db869f83ab3fe0a15af46ec4ca6fc655e6
 check_sha256 "${DEVICE_DIR}/manifests/device-blobs.sha256" ff7660194653363aac6d72f04102e439fe451832114c595c62bfde840cda8740
 
 if [[ "${RODIN_ALLOW_UNPINNED_SOURCE:-0}" != "1" ]]; then
@@ -87,6 +91,15 @@ if [[ "${RODIN_ALLOW_UNPINNED_SOURCE:-0}" != "1" ]]; then
     check_revision "${TOP_DIR}/vendor/recovery" \
         af3d99b83adedf88fa9992d9320c5ce9811c6b08 "OrangeFox vendor/recovery"
 fi
+
+# Confirm the universal fastbootd fix is actually present in the source tree.
+check_contains "${TOP_DIR}/hardware/interfaces/boot/aidl/client/include/BootControlClient.h"     "TryGetService();"     "non-blocking BootControl API is missing"
+
+check_contains "${TOP_DIR}/hardware/interfaces/boot/aidl/client/BootControlClient.cpp"     "BootControlClient::TryGetService()"     "non-blocking BootControl implementation is missing"
+
+check_contains "${TOP_DIR}/system/core/fastboot/device/fastboot_device.cpp"     "AServiceManager_checkService(service_name.c_str())"     "fastbootd non-blocking AIDL lookup is missing"
+
+check_contains "${TOP_DIR}/system/core/fastboot/device/fastboot_device.cpp"     "BootControlClient::TryGetService()"     "fastbootd non-blocking BootControl lookup is missing"
 
 while IFS= read -r relative; do
     [[ -n "$relative" ]] && check_file "${DEVICE_DIR}/${relative}"

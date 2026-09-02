@@ -1,0 +1,59 @@
+From d4add349bc23456cd137d73b1acbcd789aaa5ed0 Mon Sep 17 00:00:00 2001
+From: NEESCHAL <231459343+NEESCHAL-3@users.noreply.github.com>
+Date: Wed, 2 Sep 2026 02:18:32 +0000
+Subject: [PATCH] fastbootd: avoid blocking on optional HAL services
+
+---
+ fastboot/device/fastboot_device.cpp | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/fastboot/device/fastboot_device.cpp b/fastboot/device/fastboot_device.cpp
+index 0dc4e97..2d23e36 100644
+--- a/fastboot/device/fastboot_device.cpp
++++ b/fastboot/device/fastboot_device.cpp
+@@ -51,13 +51,13 @@ std::shared_ptr<aidl::android::hardware::health::IHealth> get_health_service() {
+     using aidl::android::hardware::health::HealthShim;
+     auto service_name = IHealth::descriptor + "/default"s;
+     if (AServiceManager_isDeclared(service_name.c_str())) {
+-        ndk::SpAIBinder binder(AServiceManager_waitForService(service_name.c_str()));
++        ndk::SpAIBinder binder(AServiceManager_checkService(service_name.c_str()));
+         std::shared_ptr<IHealth> health = IHealth::fromBinder(binder);
+         if (health != nullptr) return health;
+         LOG(WARNING) << "AIDL health service is declared, but it cannot be retrieved.";
+     }
+     LOG(INFO) << "Unable to get AIDL health service, trying HIDL...";
+-    android::sp<HidlHealth> hidl_health = android::hardware::health::V2_0::get_health_service();
++    android::sp<HidlHealth> hidl_health = HidlHealth::tryGetService();
+     if (hidl_health != nullptr) {
+         return ndk::SharedRefBase::make<HealthShim>(hidl_health);
+     }
+@@ -71,7 +71,7 @@ std::shared_ptr<aidl::android::hardware::fastboot::IFastboot> get_fastboot_servi
+     using aidl::android::hardware::fastboot::FastbootShim;
+     auto service_name = IFastboot::descriptor + "/default"s;
+     if (AServiceManager_isDeclared(service_name.c_str())) {
+-        ndk::SpAIBinder binder(AServiceManager_waitForService(service_name.c_str()));
++        ndk::SpAIBinder binder(AServiceManager_checkService(service_name.c_str()));
+         std::shared_ptr<IFastboot> fastboot = IFastboot::fromBinder(binder);
+         if (fastboot != nullptr) {
+             LOG(INFO) << "Found and using AIDL fastboot service";
+@@ -80,7 +80,7 @@ std::shared_ptr<aidl::android::hardware::fastboot::IFastboot> get_fastboot_servi
+         LOG(WARNING) << "AIDL fastboot service is declared, but it cannot be retrieved.";
+     }
+     LOG(INFO) << "Unable to get AIDL fastboot service, trying HIDL...";
+-    android::sp<HidlFastboot> hidl_fastboot = HidlFastboot::getService();
++    android::sp<HidlFastboot> hidl_fastboot = HidlFastboot::tryGetService();
+     if (hidl_fastboot != nullptr) {
+         LOG(INFO) << "Found and now using fastboot HIDL implementation";
+         return ndk::SharedRefBase::make<FastbootShim>(hidl_fastboot);
+@@ -110,7 +110,7 @@ FastbootDevice::FastbootDevice()
+               {FB_CMD_SNAPSHOT_UPDATE, SnapshotUpdateHandler},
+               {FB_CMD_FETCH, FetchHandler},
+       }),
+-      boot_control_hal_(BootControlClient::WaitForService()),
++      boot_control_hal_(BootControlClient::TryGetService()),
+       health_hal_(get_health_service()),
+       fastboot_hal_(get_fastboot_service()),
+       active_slot_("") {
+-- 
+2.43.0
+

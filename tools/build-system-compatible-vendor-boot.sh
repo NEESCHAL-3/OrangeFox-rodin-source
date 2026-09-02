@@ -25,7 +25,7 @@ case "${FIRMWARE_VARIANT}" in
         ;;
 
     *)
-        echo "unsupported RODIN_FIRMWARE_VARIANT: ${FIRMWARE_VARIANT} (expected india)" >&2
+        echo "unsupported RODIN_FIRMWARE_VARIANT: ${FIRMWARE_VARIANT} (expected india or china)" >&2
         exit 1
         ;;
 esac

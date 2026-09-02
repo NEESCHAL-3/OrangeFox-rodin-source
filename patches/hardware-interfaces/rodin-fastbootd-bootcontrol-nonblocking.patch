@@ -1,0 +1,83 @@
+From 61f0bcd25bdbf2b6d4d978fdfa348bf01078a8f8 Mon Sep 17 00:00:00 2001
+From: NEESCHAL <231459343+NEESCHAL-3@users.noreply.github.com>
+Date: Wed, 2 Sep 2026 02:18:19 +0000
+Subject: [PATCH] boot: add non-blocking BootControl service lookup
+
+---
+ boot/aidl/client/BootControlClient.cpp       | 44 ++++++++++++++++++++
+ boot/aidl/client/include/BootControlClient.h |  4 ++
+ 2 files changed, 48 insertions(+)
+
+diff --git a/boot/aidl/client/BootControlClient.cpp b/boot/aidl/client/BootControlClient.cpp
+index 89258d2..9756913 100644
+--- a/boot/aidl/client/BootControlClient.cpp
++++ b/boot/aidl/client/BootControlClient.cpp
+@@ -323,6 +323,50 @@ class BootControlClientHIDL final : public BootControlClient {
+     android::sp<V1_2::IBootControl> module_v1_2_;
+ };
+ 
++std::unique_ptr<BootControlClient> BootControlClient::TryGetService() {
++    const auto instance_name =
++            std::string(::aidl::android::hardware::boot::IBootControl::descriptor) + "/default";
++
++    if (AServiceManager_isDeclared(instance_name.c_str())) {
++        auto module = ::aidl::android::hardware::boot::IBootControl::fromBinder(
++                ndk::SpAIBinder(AServiceManager_checkService(instance_name.c_str())));
++
++        if (module != nullptr) {
++            LOG(INFO) << "Using ready AIDL version of IBootControl";
++            return std::make_unique<BootControlClientAidl>(module);
++        }
++
++        LOG(WARNING) << "AIDL " << instance_name
++                     << " is declared but not ready; fastbootd will not wait.";
++    }
++
++    LOG(INFO) << "Trying HIDL IBootControl without waiting.";
++
++    android::sp<V1_0::IBootControl> v1_0_module =
++            V1_0::IBootControl::tryGetService();
++
++    if (v1_0_module == nullptr) {
++        LOG(WARNING) << "BootControl HAL is not immediately available.";
++        return nullptr;
++    }
++
++    android::sp<V1_1::IBootControl> v1_1_module =
++            V1_1::IBootControl::castFrom(v1_0_module);
++    android::sp<V1_2::IBootControl> v1_2_module =
++            V1_2::IBootControl::castFrom(v1_0_module);
++
++    if (v1_2_module != nullptr) {
++        LOG(INFO) << "Using HIDL version 1.2 of IBootControl";
++    } else if (v1_1_module != nullptr) {
++        LOG(INFO) << "Using HIDL version 1.1 of IBootControl";
++    } else {
++        LOG(INFO) << "Using HIDL version 1.0 of IBootControl";
++    }
++
++    return std::make_unique<BootControlClientHIDL>(
++            v1_0_module, v1_1_module, v1_2_module);
++}
++
+ std::unique_ptr<BootControlClient> BootControlClient::WaitForService() {
+     const auto instance_name =
+             std::string(::aidl::android::hardware::boot::IBootControl::descriptor) + "/default";
+diff --git a/boot/aidl/client/include/BootControlClient.h b/boot/aidl/client/include/BootControlClient.h
+index 472e82e..3f840f0 100644
+--- a/boot/aidl/client/include/BootControlClient.h
++++ b/boot/aidl/client/include/BootControlClient.h
+@@ -89,6 +89,10 @@ class BootControlClient {
+     // Return 0xFFFFFFFF if underlying HAL doesn't support this operation.
+     [[nodiscard]] virtual int32_t GetActiveBootSlot() const = 0;
+ 
++    // Non-blocking lookup for recovery/fastbootd. Returns nullptr when
++    // BootControl is not immediately available.
++    [[nodiscard]] static std::unique_ptr<BootControlClient> TryGetService();
++
+     [[nodiscard]] static std::unique_ptr<BootControlClient> WaitForService();
+ };
+ 
+-- 
+2.43.0
+
