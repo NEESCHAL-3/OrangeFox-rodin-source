@@ -1254,10 +1254,10 @@ index 557283b1..5489027c 100755
  	if (ioctl(loop_fd, LOOP_SET_STATUS64, &info)) {
  		LOGERR("failed to mount loop: %s: %s\n", fileToMount.c_str(), strerror(errno));
 diff --git a/twrpRepacker.cpp b/twrpRepacker.cpp
-index ca3f8243..d06803e3 100755
+index ca3f8243..6ff5b74e 100755
 --- a/twrpRepacker.cpp
 +++ b/twrpRepacker.cpp
-@@ -29,6 +29,727 @@
+@@ -29,6 +29,728 @@
  #include "variables.h"
  #include "gui/gui.hpp"
  
@@ -1278,6 +1278,7 @@ index ca3f8243..d06803e3 100755
 +#include <libfdt.h>
 +#include <libavb/libavb.h>
 +#include <openssl/sha.h>
++#include <zstd.h>
 +#endif
 +
 +
@@ -1985,7 +1986,7 @@ index ca3f8243..d06803e3 100755
  bool twrpRepacker::Prepare_Empty_Folder(const std::string& Folder) {
  	if (TWFunc::Path_Exists(Folder))
  		TWFunc::removeDir(Folder, false);
-@@ -125,7 +846,7 @@ static bool is_AB_for_repacker() {
+@@ -125,7 +847,7 @@ static bool is_AB_for_repacker() {
  	return !slot.empty();
  }
  
@@ -1994,7 +1995,7 @@ index ca3f8243..d06803e3 100755
  	if (!TWFunc::Path_Exists(TWFunc::Get_MagiskBoot())) {
  		LOGERR("Image repacking tool not present in this TWRP build!");
  		return false;
-@@ -172,11 +893,29 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
+@@ -172,11 +894,29 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
  	}
  	if (!Backup_Image_For_Repack(part, REPACK_ORIG_DIR, Repack_Options.Backup_First, gui_lookup("repack", "Repack")))
  		return false;
@@ -2026,7 +2027,7 @@ index ca3f8243..d06803e3 100755
  	} else {
  		gui_msg(Msg("unpacking_image=Unpacking {1}...")(Target_Image));
  		image_ramdisk_format = Unpack_Image(Target_Image, REPACK_NEW_DIR, true);
-@@ -195,7 +934,8 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
+@@ -195,7 +935,8 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
  			LOGERR("Failed to copy ramdisk\n");
  			return false;
  		}
@@ -2036,7 +2037,7 @@ index ca3f8243..d06803e3 100755
  			if (TWFunc::copy_file(Target_Image, REPACK_ORIG_DIR + ramdisk_cpio, 0644)) {
  				LOGERR("Failed to copy ramdisk\n");
  				return false;
-@@ -246,6 +986,21 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
+@@ -246,6 +987,21 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
  		return false;
  	}
  
@@ -2058,7 +2059,7 @@ index ca3f8243..d06803e3 100755
  	DataManager::SetProgress(.75);
  	std::string file = "new-boot.img";
  	DataManager::SetValue("tw_flash_partition", dest_partition + ";");
-@@ -254,13 +1009,15 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
+@@ -254,13 +1010,15 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
  		return false;
  	}
  	DataManager::SetProgress(1);
@@ -2075,7 +2076,7 @@ index ca3f8243..d06803e3 100755
  		DataManager::SetProgress(.25);
  		PartitionManager.Update_System_Details();
  #if defined(OF_AB_DEVICE_WITH_RECOVERY_PARTITION) || defined(FOX_VENDOR_BOOT_RECOVERY) || defined(BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT)
-@@ -313,16 +1070,542 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
+@@ -313,16 +1071,686 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
  	TWFunc::removeDir(REPACK_NEW_DIR, false);
  	if (dest_partition == "/boot")
  		gui_msg(Msg(msg::kWarning, "repack_overwrite_warning=If device was previously rooted, then root has been overwritten and will need to be reinstalled."));
@@ -2246,6 +2247,7 @@ index ca3f8243..d06803e3 100755
 +
 +	uint32_t platform_size = 0;
 +	uint32_t platform_offset = 0;
++	uint64_t platform_table_entry_absolute = 0;
 +	bool platform_found = false;
 +
 +	for (uint32_t i = 0; i < entry_num; ++i) {
@@ -2266,6 +2268,8 @@ index ca3f8243..d06803e3 100755
 +
 +			platform_size = size;
 +			platform_offset = offset;
++			platform_table_entry_absolute =
++				table_offset + static_cast<uint64_t>(i) * entry_size;
 +			platform_found = true;
 +		}
 +	}
@@ -2296,64 +2300,120 @@ index ca3f8243..d06803e3 100755
 +	const uint8_t legacy_magic[4] = {
 +		0x02, 0x21, 0x4c, 0x18
 +	};
++	const uint8_t zstd_magic[4] = {
++		0x28, 0xb5, 0x2f, 0xfd
++	};
 +
-+	if (memcmp(platform.data(), legacy_magic, 4) != 0) {
-+		LOGERR("Auto-DFE: PLATFORM is not legacy LZ4.\n");
++	const bool platform_is_legacy_lz4 =
++		memcmp(platform.data(), legacy_magic, sizeof(legacy_magic)) == 0;
++	const bool platform_is_zstd =
++		memcmp(platform.data(), zstd_magic, sizeof(zstd_magic)) == 0;
++
++	if (!platform_is_legacy_lz4 && !platform_is_zstd) {
++		LOGERR("Auto-DFE: unsupported PLATFORM compression.\n");
 +		return false;
 +	}
 +
-+	size_t pos = 4;
-+	size_t stream_end = 0;
++	if (platform_is_legacy_lz4) {
++		size_t pos = 4;
++		size_t stream_end = 0;
 +
-+	while (pos + 4 <= platform.size()) {
-+		const uint32_t block_size =
-+			le32(platform.data() + pos);
++		while (pos + 4 <= platform.size()) {
++			const uint32_t block_size =
++				le32(platform.data() + pos);
 +
-+		pos += 4;
++			pos += 4;
 +
-+		if (block_size == 0) {
-+			stream_end = pos;
-+			break;
++			if (block_size == 0) {
++				stream_end = pos;
++				break;
++			}
++
++			if (block_size > platform.size() - pos) {
++				LOGERR("Auto-DFE: malformed PLATFORM LZ4.\n");
++				return false;
++			}
++
++			pos += block_size;
 +		}
 +
-+		if (block_size > platform.size() - pos) {
-+			LOGERR("Auto-DFE: malformed PLATFORM LZ4.\n");
++		if (stream_end == 0) {
++			LOGERR("Auto-DFE: PLATFORM LZ4 end marker missing.\n");
 +			return false;
 +		}
 +
-+		pos += block_size;
-+	}
++		{
++			std::ofstream out(
++				lz4_in,
++				std::ios::binary | std::ios::trunc);
 +
-+	if (stream_end == 0) {
-+		LOGERR("Auto-DFE: PLATFORM LZ4 end marker missing.\n");
-+		return false;
-+	}
++			if (!out)
++				return false;
 +
-+	{
++			out.write(
++				reinterpret_cast<const char*>(platform.data()),
++				stream_end);
++
++			if (!out)
++				return false;
++		}
++
++		/*
++		 * Rodin stock legacy-LZ4 may return a decoder error after
++		 * already producing the valid CPIO. Validate output below.
++		 */
++		TWFunc::Exec_Cmd(
++			lz4 + " -d " + lz4_in + " " + cpio,
++			result);
++	} else {
++		const unsigned long long decoded_size =
++			ZSTD_getFrameContentSize(
++				platform.data(),
++				platform.size());
++
++		if (decoded_size == ZSTD_CONTENTSIZE_ERROR ||
++		    decoded_size == ZSTD_CONTENTSIZE_UNKNOWN ||
++		    decoded_size == 0 ||
++		    decoded_size > 512ULL * 1024ULL * 1024ULL) {
++			LOGERR("Auto-DFE: invalid Zstd PLATFORM frame.\n");
++			return false;
++		}
++
++		std::vector<uint8_t> decoded(
++			static_cast<size_t>(decoded_size));
++
++		const size_t actual =
++			ZSTD_decompress(
++				decoded.data(),
++				decoded.size(),
++				platform.data(),
++				platform.size());
++
++		if (ZSTD_isError(actual) ||
++		    actual != decoded.size()) {
++			LOGERR(
++				"Auto-DFE: Zstd PLATFORM decompression failed: %s\n",
++				ZSTD_getErrorName(actual));
++			return false;
++		}
++
 +		std::ofstream out(
-+			lz4_in,
++			cpio,
 +			std::ios::binary | std::ios::trunc);
 +
 +		if (!out)
 +			return false;
 +
 +		out.write(
-+			reinterpret_cast<const char*>(platform.data()),
-+			stream_end);
++			reinterpret_cast<const char*>(decoded.data()),
++			decoded.size());
 +
 +		if (!out)
 +			return false;
 +	}
 +
-+	/*
-+	 * Rodin stock legacy-LZ4 returns a decoder error after already
-+	 * producing the valid CPIO. Validate output rather than exit code.
-+	 */
-+	TWFunc::Exec_Cmd(
-+		lz4 + " -d " + lz4_in + " " + cpio,
-+		result);
-+
 +	struct stat cpio_stat {};
++
 +	if (stat(cpio.c_str(), &cpio_stat) != 0 ||
 +	    cpio_stat.st_size <= 0) {
 +		LOGERR("Auto-DFE: PLATFORM decompression failed.\n");
@@ -2477,27 +2537,29 @@ index ca3f8243..d06803e3 100755
 +		return false;
 +	}
 +
-+	/*
-+	 * Same format used by the working Rodin platform ramdisk.
-+	 */
-+	TWFunc::Exec_Cmd(
-+		lz4 + " -l -12 " + cpio + " " + lz4_new,
-+		result);
++	std::vector<uint8_t> new_platform;
 +
-+	struct stat new_lz4_stat {};
++	if (platform_is_legacy_lz4) {
++		if (TWFunc::Exec_Cmd(
++				lz4 + " -l -12 " + cpio + " " + lz4_new,
++				result) != 0) {
++			LOGERR("Auto-DFE: PLATFORM LZ4 recompression failed.\n");
++			return false;
++		}
 +
-+	if (stat(lz4_new.c_str(), &new_lz4_stat) != 0 ||
-+	    new_lz4_stat.st_size <= 0 ||
-+	    static_cast<uint64_t>(new_lz4_stat.st_size) >
-+		    platform_size) {
-+		LOGERR("Auto-DFE: rebuilt PLATFORM does not fit.\n");
-+		return false;
-+	}
++		struct stat new_lz4_stat {};
 +
-+	std::vector<uint8_t> new_platform(
-+		static_cast<size_t>(new_lz4_stat.st_size));
++		if (stat(lz4_new.c_str(), &new_lz4_stat) != 0 ||
++		    new_lz4_stat.st_size <= 0 ||
++		    static_cast<uint64_t>(new_lz4_stat.st_size) >
++			    platform_size) {
++			LOGERR("Auto-DFE: rebuilt PLATFORM does not fit.\n");
++			return false;
++		}
 +
-+	{
++		new_platform.resize(
++			static_cast<size_t>(new_lz4_stat.st_size));
++
 +		std::ifstream input(lz4_new, std::ios::binary);
 +
 +		if (!input)
@@ -2509,6 +2571,64 @@ index ca3f8243..d06803e3 100755
 +
 +		if (!input)
 +			return false;
++	} else {
++		struct stat cpio_new_stat {};
++
++		if (stat(cpio.c_str(), &cpio_new_stat) != 0 ||
++		    cpio_new_stat.st_size <= 0) {
++			LOGERR("Auto-DFE: rebuilt PLATFORM CPIO is invalid.\n");
++			return false;
++		}
++
++		std::vector<uint8_t> cpio_data(
++			static_cast<size_t>(cpio_new_stat.st_size));
++
++		{
++			std::ifstream input(cpio, std::ios::binary);
++
++			if (!input)
++				return false;
++
++			input.read(
++				reinterpret_cast<char*>(cpio_data.data()),
++				cpio_data.size());
++
++			if (!input)
++				return false;
++		}
++
++		const size_t bound =
++			ZSTD_compressBound(cpio_data.size());
++
++		if (ZSTD_isError(bound) || bound == 0) {
++			LOGERR("Auto-DFE: invalid Zstd compression bound.\n");
++			return false;
++		}
++
++		new_platform.resize(bound);
++
++		const size_t compressed_size =
++			ZSTD_compress(
++				new_platform.data(),
++				new_platform.size(),
++				cpio_data.data(),
++				cpio_data.size(),
++				19);
++
++		if (ZSTD_isError(compressed_size)) {
++			LOGERR(
++				"Auto-DFE: Zstd PLATFORM recompression failed: %s\n",
++				ZSTD_getErrorName(compressed_size));
++			return false;
++		}
++
++		new_platform.resize(compressed_size);
++
++		if (new_platform.empty() ||
++		    new_platform.size() > platform_size) {
++			LOGERR("Auto-DFE: rebuilt PLATFORM does not fit.\n");
++			return false;
++		}
 +	}
 +
 +	if (TWFunc::Exec_Cmd(
@@ -2560,6 +2680,31 @@ index ca3f8243..d06803e3 100755
 +
 +		pad -= chunk;
 +		pad_offset += chunk;
++	}
++
++	/*
++	 * Keep all fragment offsets unchanged, but publish the actual rebuilt
++	 * PLATFORM length in the vendor_boot v4 ramdisk table.
++	 */
++	const uint32_t new_platform_size =
++		static_cast<uint32_t>(new_platform.size());
++
++	const uint8_t new_platform_size_le[4] = {
++		static_cast<uint8_t>(new_platform_size),
++		static_cast<uint8_t>(new_platform_size >> 8),
++		static_cast<uint8_t>(new_platform_size >> 16),
++		static_cast<uint8_t>(new_platform_size >> 24)
++	};
++
++	if (pwrite(
++			out_fd,
++			new_platform_size_le,
++			sizeof(new_platform_size_le),
++			platform_table_entry_absolute) !=
++	    static_cast<ssize_t>(sizeof(new_platform_size_le))) {
++		close(out_fd);
++		LOGERR("Auto-DFE: PLATFORM table size update failed.\n");
++		return false;
 +	}
 +
 +	if (fsync(out_fd) != 0) {
@@ -2624,7 +2769,7 @@ index ca3f8243..d06803e3 100755
  	// A/B with dedicated recovery partition
  	std::string slot = android::base::GetProperty("ro.boot.slot_suffix", "");
  	if (slot.empty())
-@@ -397,8 +1680,45 @@ bool twrpRepacker::Flash_Current_Twrp() {
+@@ -397,8 +1825,45 @@ bool twrpRepacker::Flash_Current_Twrp() {
  		gui_msg(Msg(msg::kError, "create_ramdisk_error=failed to create ramdisk to flash."));
  		return false;
  	}

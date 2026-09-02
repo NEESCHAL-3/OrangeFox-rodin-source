@@ -97,7 +97,7 @@ The verified patched development revisions are:
 
 | External repository | Verified development revision |
 | --- | --- |
-| `bootable/recovery` | `a9729dd387aef007c9ed87ced989bebc5e5441b7` |
+| `bootable/recovery` | `eaa1bf3d2c71b4c8c2ecccdb24f1170b0fe4d8e7` |
 | `hardware/interfaces` | `61f0bcd25bdbf2b6d4d978fdfa348bf01078a8f8` |
 | `system/core` | `d4add349bc23456cd137d73b1acbcd789aaa5ed0` |
 

@@ -34,7 +34,7 @@ Canonical complete patch:
 
 SHA-256:
 
-`2139f65744aa6773132b149c80adc5ff6596a67269029cd57935f8b3c076c4e0`
+`a1842a5b4c3df7aae21a079bdbba8bc2fe1ceb7fbf6beafec836bb78f158b362`
 
 The recovery patch contains the established rodin recovery work, including:
 
@@ -53,7 +53,7 @@ The complete patch is the machine-friendly input used by automated source prepar
 
 The current verified development recovery revision is:
 
-`a9729dd387aef007c9ed87ced989bebc5e5441b7`
+`eaa1bf3d2c71b4c8c2ecccdb24f1170b0fe4d8e7`
 
 Because later recovery development can modify lines originally introduced by the complete patch, `apply-orangefox-patches.sh` also recognizes the already-prepared recovery state through verified source markers instead of attempting to apply the complete patch twice.
 
@@ -166,11 +166,26 @@ All published patch hashes are recorded in:
 Current machine-friendly patch hashes:
 
 ```text
-2139f65744aa6773132b149c80adc5ff6596a67269029cd57935f8b3c076c4e0  patches/bootable-recovery/rodin-complete.patch
+43c577e01af0ecc2ac3a4d6e3947a486174d3016ac7304b00c0a616ce5d8dc12  patches/bootable-recovery/0007-recovery-support-Zstd-PLATFORM-in-rodin-Auto-DFE.patch
+a1842a5b4c3df7aae21a079bdbba8bc2fe1ceb7fbf6beafec836bb78f158b362  patches/bootable-recovery/rodin-complete.patch
 8d7f88b979fd51280d52774ccc51205a4316f6160053a17210c246ca4944b18b  patches/build-make/rodin-complete.patch
 e10f789766f359d5d4b91d2fa7ee8418d5c39694f7c914d5cc02c6aa533755b8  patches/hardware-interfaces/rodin-fastbootd-bootcontrol-nonblocking.patch
 740b10ad8cae477e8d387406b61594db869f83ab3fe0a15af46ec4ca6fc655e6  patches/system-core/rodin-fastbootd-optional-hals-nonblocking.patch
 ```
+
+### Auto-DFE v2 patch
+
+The seventh recovery development patch is:
+
+`patches/bootable-recovery/0007-recovery-support-Zstd-PLATFORM-in-rodin-Auto-DFE.patch`
+
+SHA-256:
+
+`43c577e01af0ecc2ac3a4d6e3947a486174d3016ac7304b00c0a616ce5d8dc12`
+
+It upgrades the rodin Auto-DFE vendor_boot parser to support both legacy LZ4 and Zstd PLATFORM ramdisks and updates the vendor_boot v4 PLATFORM table size after recompression.
+
+The change is included in the canonical `rodin-complete.patch`.
 
 ---
 

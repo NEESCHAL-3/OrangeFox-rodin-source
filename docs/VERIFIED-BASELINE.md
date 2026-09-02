@@ -46,7 +46,7 @@ Verified development revisions:
 
 | External repository | Verified development revision |
 | --- | --- |
-| `bootable/recovery` | `a9729dd387aef007c9ed87ced989bebc5e5441b7` |
+| `bootable/recovery` | `eaa1bf3d2c71b4c8c2ecccdb24f1170b0fe4d8e7` |
 | `hardware/interfaces` | `61f0bcd25bdbf2b6d4d978fdfa348bf01078a8f8` |
 | `system/core` | `d4add349bc23456cd137d73b1acbcd789aaa5ed0` |
 
@@ -152,10 +152,10 @@ A complete `./build-release.sh` run completed successfully and produced all four
 
 | Release image | SHA-256 |
 | --- | --- |
-| HOS AVB Enabled | `51c1246aa12a089cc23db34933a97084994a13f0dc4e99fe37ee68e0fa3fc18c` |
-| HOS AVB Disabled | `26056996dd3f21aa21e874fcbfa8ee4a8f990f0aa1e3db25b9e21a934b36d055` |
-| AOSP AVB Enabled | `e7e1de7996b681638b3242fc2a2f9511b98e1a86d242dd19fea816d16aaeb692` |
-| AOSP AVB Disabled | `79ef6df3667c0ab34c3bc91b82671ed9ccd92baa4f19110870d4c0ab577ce861` |
+| HOS AVB Enabled | `2d17e011cdbb1d9f7c21d4a7f4a0688c8823df65e10070db60837bccd9880fed` |
+| HOS AVB Disabled | `3d276e4df21dfaba31215ef1e6a283b2693e1faa6d3ca235e9de2740a80ba60f` |
+| AOSP AVB Enabled | `47d29039fcac073fdceb5bcc86df0db1abdb6d81bb2a300b868003e429638346` |
+| AOSP AVB Disabled | `23607d444d45b1db279117c70944255f5cece027d9ed2b21c41ad1c5dee6bffd` |
 
 The default `vendor_boot.img` output points to the unified HOS AVB Enabled image.
 
@@ -194,6 +194,33 @@ The verified HOS compatibility baseline covers the supported rodin CN 6.6.77 and
 AOSP remains a separate profile with its dedicated PLATFORM and bootconfig.
 
 Different kernel ABIs or unrelated vendor environments require separate validation before being declared supported.
+
+## Auto-DFE v2 validation
+
+Recovery revision:
+
+`eaa1bf3d2c71b4c8c2ecccdb24f1170b0fe4d8e7`
+
+Auto-DFE v2 adds compression-aware vendor_boot v4 PLATFORM handling.
+
+Verified behavior:
+
+- legacy LZ4 PLATFORM support retained
+- Zstd PLATFORM support added through libzstd
+- PLATFORM size and offset are taken from the vendor ramdisk table
+- Zstd does not depend on an LZ4 end-marker scan
+- rebuilt PLATFORM must remain within the original allocation
+- actual rebuilt PLATFORM size is written back to the v4 ramdisk table
+- other vendor_boot fragments remain at their existing offsets
+- AVB hash refresh and rollback protections remain active
+
+The unified HOS Zstd dry-run completed successfully:
+
+`Auto-DFE DRY-RUN PASS. Nothing was flashed.`
+
+The target vendor_boot remained unchanged during dry-run.
+
+Final normal recovery startup was also verified with successful FBE decryption and the required rodin modules loaded.
 
 ---
 

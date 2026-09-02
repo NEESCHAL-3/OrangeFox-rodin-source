@@ -73,7 +73,7 @@ check_file "${DEVICE_DIR}/patches/system-core/rodin-fastbootd-optional-hals-nonb
 check_file "${DEVICE_DIR}/manifests/device-blobs.sha256"
 check_file "${DEVICE_DIR}/manifests/orangefox-fox_14.1-pinned.xml"
 check_sha256 "${DEVICE_DIR}/patches/build-make/rodin-complete.patch" 8d7f88b979fd51280d52774ccc51205a4316f6160053a17210c246ca4944b18b
-check_sha256 "${DEVICE_DIR}/patches/bootable-recovery/rodin-complete.patch" 2139f65744aa6773132b149c80adc5ff6596a67269029cd57935f8b3c076c4e0
+check_sha256 "${DEVICE_DIR}/patches/bootable-recovery/rodin-complete.patch" a1842a5b4c3df7aae21a079bdbba8bc2fe1ceb7fbf6beafec836bb78f158b362
 check_sha256 "${DEVICE_DIR}/patches/hardware-interfaces/rodin-fastbootd-bootcontrol-nonblocking.patch" e10f789766f359d5d4b91d2fa7ee8418d5c39694f7c914d5cc02c6aa533755b8
 check_sha256 "${DEVICE_DIR}/patches/system-core/rodin-fastbootd-optional-hals-nonblocking.patch" 740b10ad8cae477e8d387406b61594db869f83ab3fe0a15af46ec4ca6fc655e6
 check_sha256 "${DEVICE_DIR}/manifests/device-blobs.sha256" ff7660194653363aac6d72f04102e439fe451832114c595c62bfde840cda8740
@@ -93,7 +93,7 @@ if [[ "${RODIN_ALLOW_UNPINNED_SOURCE:-0}" != "1" ]]; then
     rm -f "${filtered_manifest}"
 
     check_revision "${TOP_DIR}/bootable/recovery" \
-        a9729dd387aef007c9ed87ced989bebc5e5441b7 \
+        eaa1bf3d2c71b4c8c2ecccdb24f1170b0fe4d8e7 \
         "patched bootable/recovery"
 
     check_revision "${TOP_DIR}/hardware/interfaces" \

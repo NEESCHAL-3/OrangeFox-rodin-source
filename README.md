@@ -157,3 +157,22 @@ The build workflow verifies:
 - required rodin build and runtime markers.
 
 Build verification must pass before release images are distributed.
+
+## Auto-DFE
+
+OrangeFox includes an optional Auto-DFE backend for disabling forced encryption after ROM installation.
+
+- Auto-DFE is OFF by default.
+- It patches only the ROM target slot vendor_boot.
+- It does not automatically format /data or /metadata.
+- The first encrypted-to-unencrypted transition still requires Format Data once.
+- vendor_boot v4 PLATFORM fragments are located through the ramdisk table rather than compression end-marker scanning.
+- Legacy LZ4 and Zstd PLATFORM ramdisks are supported.
+- Compression is detected from the PLATFORM fragment itself, independent of HOS or AOSP.
+- Zstd PLATFORM ramdisks are decompressed and recompressed through libzstd.
+- The rebuilt PLATFORM must fit inside the existing allocation.
+- The real rebuilt PLATFORM size is written back into the vendor ramdisk table.
+- RECOVERY, DTB and bootconfig remain at their existing offsets.
+- Auto-DFE retains its backup, rollback and safe-failure behavior.
+
+The unified HOS Zstd PLATFORM path has been verified with the Auto-DFE dry-run mechanism before enabling normal post-ROM operation.

@@ -1,0 +1,337 @@
+From eaa1bf3d2c71b4c8c2ecccdb24f1170b0fe4d8e7 Mon Sep 17 00:00:00 2001
+From: NEESCHAL <231459343+NEESCHAL-3@users.noreply.github.com>
+Date: Wed, 2 Sep 2026 08:49:22 +0000
+Subject: [PATCH] recovery: support Zstd PLATFORM in rodin Auto-DFE
+
+---
+ twrpRepacker.cpp | 241 +++++++++++++++++++++++++++++++++++++----------
+ 1 file changed, 193 insertions(+), 48 deletions(-)
+
+diff --git a/twrpRepacker.cpp b/twrpRepacker.cpp
+index d06803e3..6ff5b74e 100755
+--- a/twrpRepacker.cpp
++++ b/twrpRepacker.cpp
+@@ -46,6 +46,7 @@
+ #include <libfdt.h>
+ #include <libavb/libavb.h>
+ #include <openssl/sha.h>
++#include <zstd.h>
+ #endif
+ 
+ 
+@@ -1232,6 +1233,7 @@ bool twrpRepacker::Patch_Rodin_Auto_DFE(bool dry_run) {
+ 
+ 	uint32_t platform_size = 0;
+ 	uint32_t platform_offset = 0;
++	uint64_t platform_table_entry_absolute = 0;
+ 	bool platform_found = false;
+ 
+ 	for (uint32_t i = 0; i < entry_num; ++i) {
+@@ -1252,6 +1254,8 @@ bool twrpRepacker::Patch_Rodin_Auto_DFE(bool dry_run) {
+ 
+ 			platform_size = size;
+ 			platform_offset = offset;
++			platform_table_entry_absolute =
++				table_offset + static_cast<uint64_t>(i) * entry_size;
+ 			platform_found = true;
+ 		}
+ 	}
+@@ -1282,64 +1286,120 @@ bool twrpRepacker::Patch_Rodin_Auto_DFE(bool dry_run) {
+ 	const uint8_t legacy_magic[4] = {
+ 		0x02, 0x21, 0x4c, 0x18
+ 	};
++	const uint8_t zstd_magic[4] = {
++		0x28, 0xb5, 0x2f, 0xfd
++	};
++
++	const bool platform_is_legacy_lz4 =
++		memcmp(platform.data(), legacy_magic, sizeof(legacy_magic)) == 0;
++	const bool platform_is_zstd =
++		memcmp(platform.data(), zstd_magic, sizeof(zstd_magic)) == 0;
+ 
+-	if (memcmp(platform.data(), legacy_magic, 4) != 0) {
+-		LOGERR("Auto-DFE: PLATFORM is not legacy LZ4.\n");
++	if (!platform_is_legacy_lz4 && !platform_is_zstd) {
++		LOGERR("Auto-DFE: unsupported PLATFORM compression.\n");
+ 		return false;
+ 	}
+ 
+-	size_t pos = 4;
+-	size_t stream_end = 0;
++	if (platform_is_legacy_lz4) {
++		size_t pos = 4;
++		size_t stream_end = 0;
+ 
+-	while (pos + 4 <= platform.size()) {
+-		const uint32_t block_size =
+-			le32(platform.data() + pos);
++		while (pos + 4 <= platform.size()) {
++			const uint32_t block_size =
++				le32(platform.data() + pos);
+ 
+-		pos += 4;
++			pos += 4;
+ 
+-		if (block_size == 0) {
+-			stream_end = pos;
+-			break;
++			if (block_size == 0) {
++				stream_end = pos;
++				break;
++			}
++
++			if (block_size > platform.size() - pos) {
++				LOGERR("Auto-DFE: malformed PLATFORM LZ4.\n");
++				return false;
++			}
++
++			pos += block_size;
+ 		}
+ 
+-		if (block_size > platform.size() - pos) {
+-			LOGERR("Auto-DFE: malformed PLATFORM LZ4.\n");
++		if (stream_end == 0) {
++			LOGERR("Auto-DFE: PLATFORM LZ4 end marker missing.\n");
+ 			return false;
+ 		}
+ 
+-		pos += block_size;
+-	}
++		{
++			std::ofstream out(
++				lz4_in,
++				std::ios::binary | std::ios::trunc);
+ 
+-	if (stream_end == 0) {
+-		LOGERR("Auto-DFE: PLATFORM LZ4 end marker missing.\n");
+-		return false;
+-	}
++			if (!out)
++				return false;
++
++			out.write(
++				reinterpret_cast<const char*>(platform.data()),
++				stream_end);
++
++			if (!out)
++				return false;
++		}
++
++		/*
++		 * Rodin stock legacy-LZ4 may return a decoder error after
++		 * already producing the valid CPIO. Validate output below.
++		 */
++		TWFunc::Exec_Cmd(
++			lz4 + " -d " + lz4_in + " " + cpio,
++			result);
++	} else {
++		const unsigned long long decoded_size =
++			ZSTD_getFrameContentSize(
++				platform.data(),
++				platform.size());
++
++		if (decoded_size == ZSTD_CONTENTSIZE_ERROR ||
++		    decoded_size == ZSTD_CONTENTSIZE_UNKNOWN ||
++		    decoded_size == 0 ||
++		    decoded_size > 512ULL * 1024ULL * 1024ULL) {
++			LOGERR("Auto-DFE: invalid Zstd PLATFORM frame.\n");
++			return false;
++		}
++
++		std::vector<uint8_t> decoded(
++			static_cast<size_t>(decoded_size));
++
++		const size_t actual =
++			ZSTD_decompress(
++				decoded.data(),
++				decoded.size(),
++				platform.data(),
++				platform.size());
++
++		if (ZSTD_isError(actual) ||
++		    actual != decoded.size()) {
++			LOGERR(
++				"Auto-DFE: Zstd PLATFORM decompression failed: %s\n",
++				ZSTD_getErrorName(actual));
++			return false;
++		}
+ 
+-	{
+ 		std::ofstream out(
+-			lz4_in,
++			cpio,
+ 			std::ios::binary | std::ios::trunc);
+ 
+ 		if (!out)
+ 			return false;
+ 
+ 		out.write(
+-			reinterpret_cast<const char*>(platform.data()),
+-			stream_end);
++			reinterpret_cast<const char*>(decoded.data()),
++			decoded.size());
+ 
+ 		if (!out)
+ 			return false;
+ 	}
+ 
+-	/*
+-	 * Rodin stock legacy-LZ4 returns a decoder error after already
+-	 * producing the valid CPIO. Validate output rather than exit code.
+-	 */
+-	TWFunc::Exec_Cmd(
+-		lz4 + " -d " + lz4_in + " " + cpio,
+-		result);
+-
+ 	struct stat cpio_stat {};
++
+ 	if (stat(cpio.c_str(), &cpio_stat) != 0 ||
+ 	    cpio_stat.st_size <= 0) {
+ 		LOGERR("Auto-DFE: PLATFORM decompression failed.\n");
+@@ -1463,27 +1523,29 @@ bool twrpRepacker::Patch_Rodin_Auto_DFE(bool dry_run) {
+ 		return false;
+ 	}
+ 
+-	/*
+-	 * Same format used by the working Rodin platform ramdisk.
+-	 */
+-	TWFunc::Exec_Cmd(
+-		lz4 + " -l -12 " + cpio + " " + lz4_new,
+-		result);
++	std::vector<uint8_t> new_platform;
++
++	if (platform_is_legacy_lz4) {
++		if (TWFunc::Exec_Cmd(
++				lz4 + " -l -12 " + cpio + " " + lz4_new,
++				result) != 0) {
++			LOGERR("Auto-DFE: PLATFORM LZ4 recompression failed.\n");
++			return false;
++		}
+ 
+-	struct stat new_lz4_stat {};
++		struct stat new_lz4_stat {};
+ 
+-	if (stat(lz4_new.c_str(), &new_lz4_stat) != 0 ||
+-	    new_lz4_stat.st_size <= 0 ||
+-	    static_cast<uint64_t>(new_lz4_stat.st_size) >
+-		    platform_size) {
+-		LOGERR("Auto-DFE: rebuilt PLATFORM does not fit.\n");
+-		return false;
+-	}
++		if (stat(lz4_new.c_str(), &new_lz4_stat) != 0 ||
++		    new_lz4_stat.st_size <= 0 ||
++		    static_cast<uint64_t>(new_lz4_stat.st_size) >
++			    platform_size) {
++			LOGERR("Auto-DFE: rebuilt PLATFORM does not fit.\n");
++			return false;
++		}
+ 
+-	std::vector<uint8_t> new_platform(
+-		static_cast<size_t>(new_lz4_stat.st_size));
++		new_platform.resize(
++			static_cast<size_t>(new_lz4_stat.st_size));
+ 
+-	{
+ 		std::ifstream input(lz4_new, std::ios::binary);
+ 
+ 		if (!input)
+@@ -1495,6 +1557,64 @@ bool twrpRepacker::Patch_Rodin_Auto_DFE(bool dry_run) {
+ 
+ 		if (!input)
+ 			return false;
++	} else {
++		struct stat cpio_new_stat {};
++
++		if (stat(cpio.c_str(), &cpio_new_stat) != 0 ||
++		    cpio_new_stat.st_size <= 0) {
++			LOGERR("Auto-DFE: rebuilt PLATFORM CPIO is invalid.\n");
++			return false;
++		}
++
++		std::vector<uint8_t> cpio_data(
++			static_cast<size_t>(cpio_new_stat.st_size));
++
++		{
++			std::ifstream input(cpio, std::ios::binary);
++
++			if (!input)
++				return false;
++
++			input.read(
++				reinterpret_cast<char*>(cpio_data.data()),
++				cpio_data.size());
++
++			if (!input)
++				return false;
++		}
++
++		const size_t bound =
++			ZSTD_compressBound(cpio_data.size());
++
++		if (ZSTD_isError(bound) || bound == 0) {
++			LOGERR("Auto-DFE: invalid Zstd compression bound.\n");
++			return false;
++		}
++
++		new_platform.resize(bound);
++
++		const size_t compressed_size =
++			ZSTD_compress(
++				new_platform.data(),
++				new_platform.size(),
++				cpio_data.data(),
++				cpio_data.size(),
++				19);
++
++		if (ZSTD_isError(compressed_size)) {
++			LOGERR(
++				"Auto-DFE: Zstd PLATFORM recompression failed: %s\n",
++				ZSTD_getErrorName(compressed_size));
++			return false;
++		}
++
++		new_platform.resize(compressed_size);
++
++		if (new_platform.empty() ||
++		    new_platform.size() > platform_size) {
++			LOGERR("Auto-DFE: rebuilt PLATFORM does not fit.\n");
++			return false;
++		}
+ 	}
+ 
+ 	if (TWFunc::Exec_Cmd(
+@@ -1548,6 +1668,31 @@ bool twrpRepacker::Patch_Rodin_Auto_DFE(bool dry_run) {
+ 		pad_offset += chunk;
+ 	}
+ 
++	/*
++	 * Keep all fragment offsets unchanged, but publish the actual rebuilt
++	 * PLATFORM length in the vendor_boot v4 ramdisk table.
++	 */
++	const uint32_t new_platform_size =
++		static_cast<uint32_t>(new_platform.size());
++
++	const uint8_t new_platform_size_le[4] = {
++		static_cast<uint8_t>(new_platform_size),
++		static_cast<uint8_t>(new_platform_size >> 8),
++		static_cast<uint8_t>(new_platform_size >> 16),
++		static_cast<uint8_t>(new_platform_size >> 24)
++	};
++
++	if (pwrite(
++			out_fd,
++			new_platform_size_le,
++			sizeof(new_platform_size_le),
++			platform_table_entry_absolute) !=
++	    static_cast<ssize_t>(sizeof(new_platform_size_le))) {
++		close(out_fd);
++		LOGERR("Auto-DFE: PLATFORM table size update failed.\n");
++		return false;
++	}
++
+ 	if (fsync(out_fd) != 0) {
+ 		close(out_fd);
+ 		return false;
+-- 
+2.43.0
+

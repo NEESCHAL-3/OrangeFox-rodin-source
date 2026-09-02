@@ -43,7 +43,9 @@ apply_patch_once "${BUILD_DIR}" "${BUILD_PATCH}" "OrangeFox build/make"
 if grep -RqsF "OF_SKIP_POST_DECRYPT_THEME_RELOAD" "${RECOVERY_DIR}" &&
         grep -RqsF "OF_LOAD_DEFAULT_LANGUAGE_BEFORE_DECRYPT" "${RECOVERY_DIR}" &&
         grep -RqsF "fallback_face" "${RECOVERY_DIR}" &&
-        grep -RqsF "processKeyChord" "${RECOVERY_DIR}"; then
+        grep -RqsF "processKeyChord" "${RECOVERY_DIR}" &&
+        grep -RqsF "Auto-DFE: unsupported PLATFORM compression." "${RECOVERY_DIR}" &&
+        grep -RqsF "ZSTD_getFrameContentSize" "${RECOVERY_DIR}"; then
     echo "OrangeFox recovery patch is already applied (verified markers)"
 else
     apply_patch_once "${RECOVERY_DIR}" "${RECOVERY_PATCH}" "OrangeFox recovery"
