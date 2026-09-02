@@ -1,103 +1,158 @@
 # OrangeFox Recovery for Xiaomi rodin
 
-Private, runtime-verified OrangeFox Recovery source for Xiaomi **rodin**.
+Device tree and build support for OrangeFox Recovery on Xiaomi `rodin`.
 
-> **Devices:** POCO X7 Pro / Redmi Turbo 4
-> **Build profile:** India
-> **Recovery layout:** A/B `vendor_boot`
-> **Maintainer:** NEESCHAL
+Supported devices:
 
-## Status
+- POCO X7 Pro
+- Redmi Turbo 4
 
-| Area | Status |
-|---|---|
-| Recovery boot | Verified |
-| Touch | Verified |
-| FBE / decryption | Verified |
-| MTP | Verified |
-| Fastbootd | Verified |
-| A/B preservation | Verified |
-| Format Data | Verified |
-| USB OTG | Verified |
-| Legacy Edify fallback | Verified |
-| System-compatible `vendor_boot` | Verified |
+Rodin uses an A/B `vendor_boot` recovery layout with dynamic partitions and Virtual A/B. There is no standalone recovery partition.
 
-## Engineering highlights
+## Release profiles
 
-- deterministic Fastbootd USB handling
-- UFS boot-LUN switching through BSG
-- A/B recovery preservation and Format Data fixes
-- recovery UI, input and font improvements
-- ARM64 fallback updater for legacy ARM32 Edify installers
-- legacy `applypatch` / `blockimg` compatibility
-- touch and FBE recovery integration
-- runtime OTG DTB patching during recovery auto-reflash
-- system-compatible `vendor_boot` generation
-- verified India platform ramdisk integration
+This source produces four release images:
 
-## Verified firmware input
+- HOS / OEM-Port — AVB Enabled
+- HOS / OEM-Port — AVB Disabled
+- AOSP — AVB Enabled
+- AOSP — AVB Disabled
 
-`prebuilt/india/vendor_ramdisk00`
+### Unified HOS / OEM-Port
+
+The HOS build is one universal image for supported CN, Global/MIXM and India firmware.
+
+The unified PLATFORM contains separate kernel-module trees for:
+
+- CN: `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k`
+- Global/MIXM and India: `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k`
+
+Android first-stage init selects the matching `/lib/modules/<kernel-release>` directory from the running kernel. There is no firmware-region build selector.
+
+The pinned unified HOS PLATFORM is:
+
+`prebuilt/unified/vendor_ramdisk00`
 
 SHA-256:
 
-```text
-c1b5ad776c93f89c6bf227ffecbf21ff3338236833d424446b388bb9819587a6
-```
+`dda9762619ee1cbe3019735103ddd25c62ebd9d2431e991303d5855520d93389`
 
-This repository intentionally maintains the **India firmware profile only**.
+### AOSP
+
+AOSP remains a separate profile because its PLATFORM ramdisk and bootconfig differ from the OEM/HOS environment.
+
+AOSP uses:
+
+- `prebuilt/aosp/vendor_ramdisk00`
+- `prebuilt/aosp/bootconfig`
+
+The AOSP profile does not use the CN HOS module tree.
 
 ## Build
 
-From the OrangeFox source root:
+Clone this repository into an OrangeFox 14.1 source tree as:
 
-```bash
-export RODIN_FIRMWARE_VARIANT=india
-device/xiaomi/rodin/build-lowmem.sh vendorbootimage
-```
+`device/xiaomi/rodin`
 
-See [BUILDING.md](BUILDING.md) for the complete procedure.
+Then build from the device-tree directory:
 
-## Repository map
+~~bash
+./build-release.sh
+~~
 
-- `recovery/` — recovery ramdisk and device integration
-- `prebuilt/` — kernel, DTB, DTBO and India platform ramdisk
-- `proprietary/` — required recovery-side binaries
-- `tools/` — verification and `vendor_boot` tooling
-- `patches/bootable-recovery/` — OrangeFox recovery patches
-- `patches/build-make/` — Android build-system patches
-- `manifests/` — reproducibility hashes
-- `docs/` — technical documentation
+The release script:
 
-## Integrity
+1. applies the canonical rodin external-source patches,
+2. verifies pinned source revisions and binary inputs,
+3. compiles OrangeFox,
+4. builds all four release variants.
 
-Verify canonical patches:
+Outputs are written to `out/target/product/rodin/`:
 
-```bash
-sha256sum -c patches/SHA256SUMS
-```
+~~text
+OrangeFox-R12.0-NEESCHAL-rodin-HOS-AVB-ENABLED.img
+OrangeFox-R12.0-NEESCHAL-rodin-HOS-AVB-DISABLED.img
+OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-ENABLED.img
+OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-DISABLED.img
+~~
 
-Device inputs are tracked in `manifests/device-blobs.sha256`.
+`vendor_boot.img` defaults to the unified HOS AVB-enabled image.
+
+See [BUILDING.md](BUILDING.md) for the complete source setup and build procedure.
+
+## AVB variants
+
+Use AVB Enabled when the installed ROM uses its normal signed AVB configuration.
+
+Use AVB Disabled when the ROM or installation requires first-stage AVB flags to remain disabled.
+
+The HOS AVB Disabled image is generated from the same unified PLATFORM by removing only the first-stage `avb` / `avb_keys` fstab flags before repacking.
+
+## Flashing
+
+Flash the final 64 MiB image to the intended slot, for example:
+
+~~bash
+fastboot flash vendor_boot_a <image>.img
+fastboot reboot recovery
+~~
+
+Valid partition names are:
+
+- `vendor_boot_a`
+- `vendor_boot_b`
+
+Do not use `vendor_boot_ab`.
+
+Do not flash an intermediate recovery-only `vendor_boot` created before the rodin post-build packaging step.
+
+## Verified functionality
+
+The current source has been validated for:
+
+- OrangeFox boot
+- touch input
+- haptics
+- MTP and ADB
+- FBE user-data decryption
+- Fastbootd
+- A/B slot switching
+- ROM-install recovery preservation
+- Format Data workflow
+- USB OTG preservation
+- legacy ARM32 Edify installer fallback through the ARM64 updater path
+
+The unified HOS architecture has been runtime-tested with both:
+
+- CN 6.6.77 kernel family
+- Global 6.6.89 kernel family
+
+The same unified HOS `vendor_boot` successfully loaded the correct stock module set, OrangeFox device modules, userdata mapping and Fastbootd on both kernel families.
 
 ## Documentation
 
+Developer documentation is under [`docs/`](docs/README.md).
+
+Key references:
+
+- [Building](BUILDING.md)
 - [Architecture](docs/ARCHITECTURE.md)
+- [Unified HOS design](docs/UNIFIED-HOS.md)
 - [Compatibility](docs/COMPATIBILITY.md)
-- [USB / OTG](docs/USB-OTG.md)
-- [Legacy Edify](docs/LEGACY-EDIFY.md)
-- [Patch layout](docs/PATCHES.md)
+- [Development workflow](docs/DEVELOPMENT.md)
+- [Verified baseline](docs/VERIFIED-BASELINE.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [External patches](docs/PATCHES.md)
 
-## Development policy
+## Source integrity
 
-Runtime changes must be validated on-device before promotion to the verified branch. Canonical patch files and binary inputs are checksum-tracked and should not be reformatted or replaced without intentional revalidation.
+The build workflow verifies:
 
-## Credits
+- the pinned OrangeFox source manifest,
+- intentionally patched external repositories,
+- canonical patch SHA-256 values,
+- pinned device binary inputs,
+- the unified HOS PLATFORM SHA-256,
+- required rodin build and runtime markers.
 
-Source base: **woshimaniubi8** rodin OrangeFox device source.
-
-Current rodin development, integration, fixes, runtime validation and release maintenance: **NEESCHAL**.
-
-Upstream foundations: **OrangeFox Recovery Project**, **Team Win Recovery Project**, and **Android Open Source Project**.
-
-See [CREDITS.md](CREDITS.md) and [NOTICE.md](NOTICE.md).
+Build verification must pass before release images are distributed.

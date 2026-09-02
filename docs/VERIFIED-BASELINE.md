@@ -1,95 +1,198 @@
 # Verified Runtime Baseline
 
-This file records the known-good source identities used for the tested Xiaomi `rodin` OrangeFox build.
+This file records the currently verified OrangeFox baseline for Xiaomi `rodin`.
 
 ## Device tree
 
-```text
-4df2a7210e1b146cebeed11252fe5f8fa516d2eb
-rodin: save runtime verified recovery baseline
-```
+Canonical device source:
 
-Tags associated with this baseline:
+`device/xiaomi/rodin`
 
-```text
-rodin-full-runtime-known-good-20260807
-rodin-source-release-20260812
-```
+The public release workflow uses:
 
-## bootable/recovery
+`./build-release.sh`
 
-Clean base:
+The release build produces four images:
 
-```text
-fd98f33a722bd0bd52034f170bb91e2862654d6b
-```
+- unified HOS AVB Enabled
+- unified HOS AVB Disabled
+- AOSP AVB Enabled
+- AOSP AVB Disabled
 
-Verified rodin target:
+## Patched external repositories
 
-```text
-bc786e483e55c4be5ebeebc039b8acf6ed65d6b2
-```
+Verified development revisions:
 
-## build/make
+`bootable/recovery`
 
-Clean base:
+`a9729dd387aef007c9ed87ced989bebc5e5441b7`
 
-```text
-506df226dd003a364916b6b3ee1eb3bf9064f97f
-```
+`hardware/interfaces`
 
-Verified rodin target:
+`61f0bcd25bdbf2b6d4d978fdfa348bf01078a8f8`
 
-```text
-701572c48b6b328b1ce7f904aeb745440f0f3da0
-```
+`system/core`
 
-## India platform ramdisk
+`d4add349bc23456cd137d73b1acbcd789aaa5ed0`
 
-File:
+The remaining untouched source projects are verified against the pinned OrangeFox source manifest.
 
-```text
-prebuilt/india/vendor_ramdisk00
-```
+## Fastbootd patches
 
-SHA-256:
+BootControl non-blocking lookup patch SHA-256:
 
-```text
-c1b5ad776c93f89c6bf227ffecbf21ff3338236833d424446b388bb9819587a6
-```
+`e10f789766f359d5d4b91d2fa7ee8418d5c39694f7c914d5cc02c6aa533755b8`
 
-## Canonical complete patches
+Fastbootd optional-HAL non-blocking patch SHA-256:
 
-Recovery complete patch SHA-256:
+`740b10ad8cae477e8d387406b61594db869f83ab3fe0a15af46ec4ca6fc655e6`
 
-```text
-7a9e58bd9ac062bf93c67c080ba3ec397ce3b06530283b4eb07031e6163dc763
-```
+Runtime Fastbootd verification produced:
 
-build/make complete patch SHA-256:
+`is-userspace: yes`
 
-```text
-5f2d3f43a4d78eee6d560a4a169df30fc95de6fa2ed294e3210e684a641a8329
-```
+`product: rodin`
 
-## Verified release artifact
+on both verified HOS kernel families.
 
-```text
-OrangeFox-R12.0-Rodin-UNOFFICIAL-STABLE-20260807.img
-```
+## Unified HOS PLATFORM
 
-Size:
+Pinned file:
 
-```text
-67108864 bytes
-```
+`prebuilt/unified/vendor_ramdisk00`
 
 SHA-256:
 
-```text
-fa4c59e0f3713b42aa20d6316243fc1dd629e8899d461160411d52c4c2ff124e
-```
+`dda9762619ee1cbe3019735103ddd25c62ebd9d2431e991303d5855520d93389`
+
+Compression:
+
+`Zstandard`
+
+The PLATFORM contains independent module trees for:
+
+CN:
+
+`6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k`
+
+Global/MIXM and India:
+
+`6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k`
+
+The stock CN and 6.6.89 module sets each contain 244 stock modules before the OrangeFox device modules are added.
+
+## Global and India module equivalence
+
+The stock Global/MIXM and India PLATFORM ramdisks were directly compared.
+
+Both contain 485 files and 244 stock kernel modules.
+
+Their file layouts are identical.
+
+Their complete kernel-module payloads are identical and use:
+
+`6.6.89-android15-8-g03fb7c87b0b5-4k`
+
+The observed content differences were limited to:
+
+- `prop.default`
+- `system/etc/copylib.txt`
+
+Therefore the unified HOS PLATFORM uses one 6.6.89 module tree for both Global/MIXM and India.
+
+## Unified HOS runtime validation
+
+The same unified HOS vendor_boot architecture was tested with both supported kernel families.
+
+CN test kernel:
+
+`6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k`
+
+Global/MIXM test kernel:
+
+`6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k`
+
+Verified on both:
+
+- OrangeFox boot
+- correct stock module-tree selection
+- OrangeFox touch modules
+- haptics module
+- userdata block mapping
+- recovery storage access
+- Fastbootd
+- userspace Fastboot identification
+
+The OrangeFox device-specific module set successfully loaded under both kernel families.
+
+## Unified prototype
+
+The first dual-kernel AVB-disabled unified prototype SHA-256 was:
+
+`57df845928e5716ae486f9d1be4e2e577006040fe432b274ba4b16384dfab2ad`
+
+It was runtime-tested under both the CN 6.6.77 and Global 6.6.89 kernels.
+
+## Verified release build
+
+A complete `./build-release.sh` run completed successfully and produced all four release images.
+
+HOS AVB Enabled:
+
+`51c1246aa12a089cc23db34933a97084994a13f0dc4e99fe37ee68e0fa3fc18c`
+
+HOS AVB Disabled:
+
+`26056996dd3f21aa21e874fcbfa8ee4a8f990f0aa1e3db25b9e21a934b36d055`
+
+AOSP AVB Enabled:
+
+`e7e1de7996b681638b3242fc2a2f9511b98e1a86d242dd19fea816d16aaeb692`
+
+AOSP AVB Disabled:
+
+`79ef6df3667c0ab34c3bc91b82671ed9ccd92baa4f19110870d4c0ab577ce861`
+
+The default `vendor_boot.img` output points to the unified HOS AVB Enabled image.
+
+## Verified HOS packaging
+
+The successful unified HOS AVB Disabled build reported:
+
+PLATFORM:
+
+`22564936 bytes, Zstandard`
+
+RECOVERY:
+
+`38600750 bytes, LZ4`
+
+Combined vendor ramdisk:
+
+`61165686 bytes`
+
+This remains below the rodin build safety limit of 62000000 bytes.
+
+## Recovery behavior baseline
+
+The current recovery baseline includes verified support for:
+
+- touch
+- haptics
+- MTP
+- ADB
+- FBE decryption
+- Fastbootd
+- A/B slot switching
+- ROM-install recovery preservation
+- Format Data
+- USB OTG preservation
+- legacy ARM32 Edify installer fallback
 
 ## Support boundary
 
-The verified configuration is **India only**. Global and China profiles are not part of the supported build path documented by this repository.
+The verified HOS compatibility baseline covers the supported rodin CN 6.6.77 and Global/India 6.6.89 kernel families.
+
+AOSP remains a separate profile with its dedicated PLATFORM and bootconfig.
+
+Different kernel ABIs or unrelated vendor environments require separate validation before being declared supported.

@@ -10,12 +10,7 @@ fail() {
     failures=$((failures + 1))
 }
 
-case "${RODIN_FIRMWARE_VARIANT:-india}" in
-    india|china) ;;
-    *) fail "unsupported RODIN_FIRMWARE_VARIANT: ${RODIN_FIRMWARE_VARIANT:-<unset>} (expected india or china)" ;;
-esac
-
-for command_name in bash cut file git grep python3 sed sha256sum sort stat; do
+for command_name in bash cpio cut file git grep python3 sed sha256sum sort stat zstd; do
     command -v "${command_name}" >/dev/null 2>&1 || \
         fail "required host command not found: ${command_name}"
 done
@@ -84,12 +79,34 @@ check_sha256 "${DEVICE_DIR}/patches/system-core/rodin-fastbootd-optional-hals-no
 check_sha256 "${DEVICE_DIR}/manifests/device-blobs.sha256" ff7660194653363aac6d72f04102e439fe451832114c595c62bfde840cda8740
 
 if [[ "${RODIN_ALLOW_UNPINNED_SOURCE:-0}" != "1" ]]; then
-    if ! python3 "${DEVICE_DIR}/tools/verify-source-manifest.py" "${TOP_DIR}" \
-            "${DEVICE_DIR}/manifests/orangefox-fox_14.1-pinned.xml"; then
+    filtered_manifest="$(mktemp "${TMPDIR:-/tmp}/rodin-pinned-manifest.XXXXXX.xml")"
+
+    grep -vE "path=\\\"(bootable/recovery|hardware/interfaces|system/core)\\\"" \
+        "${DEVICE_DIR}/manifests/orangefox-fox_14.1-pinned.xml" \
+        > "${filtered_manifest}"
+
+    if ! python3 "${DEVICE_DIR}/tools/verify-source-manifest.py" \
+            "${TOP_DIR}" "${filtered_manifest}"; then
         fail "OrangeFox source tree differs from the pinned manifest"
     fi
+
+    rm -f "${filtered_manifest}"
+
+    check_revision "${TOP_DIR}/bootable/recovery" \
+        a9729dd387aef007c9ed87ced989bebc5e5441b7 \
+        "patched bootable/recovery"
+
+    check_revision "${TOP_DIR}/hardware/interfaces" \
+        61f0bcd25bdbf2b6d4d978fdfa348bf01078a8f8 \
+        "patched hardware/interfaces"
+
+    check_revision "${TOP_DIR}/system/core" \
+        d4add349bc23456cd137d73b1acbcd789aaa5ed0 \
+        "patched system/core"
+
     check_revision "${TOP_DIR}/vendor/recovery" \
-        af3d99b83adedf88fa9992d9320c5ce9811c6b08 "OrangeFox vendor/recovery"
+        af3d99b83adedf88fa9992d9320c5ce9811c6b08 \
+        "OrangeFox vendor/recovery"
 fi
 
 # Confirm the universal fastbootd fix is actually present in the source tree.
@@ -109,6 +126,7 @@ check_size "${DEVICE_DIR}/prebuilt/dtbo.img" 8388608
 check_size "${DEVICE_DIR}/prebuilt/dtb/mt6899-rodin.dtb" 444841
 check_sha256 "${DEVICE_DIR}/prebuilt/kernel" 55caa83bf1dd1ab5e34521f1faa18532a6110a065123577a1a62d80ee5178569
 check_sha256 "${DEVICE_DIR}/prebuilt/dtb/mt6899-rodin.dtb" 38369239c984fc191e36d043d19ccbea4c1cd09ee6c80f8646d9493f650a30ae
+check_sha256 "${DEVICE_DIR}/prebuilt/unified/vendor_ramdisk00" dda9762619ee1cbe3019735103ddd25c62ebd9d2431e991303d5855520d93389
 check_size "${DEVICE_DIR}/prebuilt/aosp/vendor_ramdisk00" 15341278
 check_size "${DEVICE_DIR}/prebuilt/aosp/bootconfig" 149
 check_sha256 "${DEVICE_DIR}/prebuilt/aosp/vendor_ramdisk00" 44713e36fb3dc9ec6d50c71570a43be1fafe1260cd5cc090f565e670983bd0b3
@@ -170,8 +188,11 @@ check_contains "${DEVICE_DIR}/Android.bp" \
     '"librodin_libcxx_compat"' \
     "OMAPI bridge is not linked against the libc++ compatibility shim"
 check_contains "${DEVICE_DIR}/tools/build-system-compatible-vendor-boot.sh" \
-    'RODIN_FIRMWARE_VARIANT' \
-    "firmware profile selector missing from vendor_boot repacker"
+    'prebuilt/unified/vendor_ramdisk00' \
+    "unified HOS PLATFORM input missing from vendor_boot builder"
+check_contains "${DEVICE_DIR}/tools/build-system-compatible-vendor-boot.sh" \
+    'RODIN_AVB_MODE' \
+    "HOS AVB mode selector missing from vendor_boot builder"
 check_contains "${DEVICE_DIR}/recovery/root/init.recovery.keymint.rc" \
     'service rodin.omapi_bridge /system/bin/rodin_omapi_bridge' \
     "OMAPI bridge service definition missing"
@@ -191,7 +212,9 @@ for script in \
     "${DEVICE_DIR}/build-lowmem.sh" \
     "${DEVICE_DIR}/fox_callback.sh" \
     "${DEVICE_DIR}/tools/apply-orangefox-patches.sh" \
+    "${DEVICE_DIR}/build-release.sh" \
     "${DEVICE_DIR}/tools/build-system-compatible-vendor-boot.sh" \
+    "${DEVICE_DIR}/tools/build-vendorboot-variants.sh" \
     "${DEVICE_DIR}/tools/collect-compat-report.sh" \
     "${DEVICE_DIR}/tools/patch-recovery-touch-modules.sh" \
     "${DEVICE_DIR}/tools/verify-build-inputs.sh"; do

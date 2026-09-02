@@ -1,62 +1,207 @@
-# Building OrangeFox for rodin
+# Building OrangeFox for Xiaomi rodin
 
-This repository is intended to be placed at `device/xiaomi/rodin` inside an OrangeFox 14.1 source tree.
+This document describes the supported public build workflow for Xiaomi `rodin`.
 
-## Supported profiles
+The device tree must be located at:
 
-- `india` — default
+`device/xiaomi/rodin`
 
-China firmware is not a supported public build profile.
+inside a compatible OrangeFox 14.1 source tree.
 
-## Source preparation
+## 1. Required host tools
 
-The rodin tree carries exact external patches for `bootable/recovery` and `build/make`.
+In addition to the normal Android/OrangeFox build dependencies, the rodin build workflow requires:
 
-From the OrangeFox source root run:
+- `bash`
+- `python3`
+- `git`
+- `cpio`
+- `zstd`
+- `dtc`
+- `fdtget`
+- `fdtput`
+- `sha256sum`
 
-```bash
-device/xiaomi/rodin/tools/apply-orangefox-patches.sh "$PWD"
-```
+The build preflight checks required tools and pinned inputs before compilation.
 
-The script verifies the pinned inputs and applies the complete base-to-target patches only when required.
+## 2. Device tree
 
-## Host memory
+Clone or place this repository at:
 
-The low-memory build path expects at least 12 GiB of available swap on constrained builders.
+`device/xiaomi/rodin`
 
-The included GitHub Actions workflow provisions 12 GiB of swap automatically.
+Example source layout:
 
-## India build
+~~text
+<orangefox-root>/
+├── bootable/
+├── build/
+├── hardware/
+├── system/
+├── vendor/
+└── device/
+    └── xiaomi/
+        └── rodin/
+~~
 
-India is the default profile:
+Do not run the release build from a standalone copy of this repository outside the Android source tree.
 
-```bash
-export RODIN_FIRMWARE_VARIANT=india
-device/xiaomi/rodin/build-lowmem.sh vendorbootimage
-```
+## 3. Pinned external patches
 
-The environment variable may be omitted for India.
+Rodin requires canonical changes outside the device tree for:
 
+- `bootable/recovery`
+- `build/make`
+- `hardware/interfaces`
+- `system/core`
 
-## Important output rule
+These include the rodin recovery changes and the non-blocking Fastbootd HAL lookup fixes.
 
-Do not flash the intermediate recovery-only `vendor_boot` produced by the ordinary Android build.
+The release build automatically runs:
 
-`build-lowmem.sh vendorbootimage` runs `tools/build-system-compatible-vendor-boot.sh`, combines the selected stock platform fragment with the OrangeFox recovery fragment, applies the rodin recovery-host DTB handling, and produces the final 64 MiB system-compatible `vendor_boot` image.
+`tools/apply-orangefox-patches.sh`
 
-## Flashing
+The patch helper is safe to rerun on an already prepared source tree. It verifies an already-applied recovery patch through known source markers instead of blindly applying it twice.
 
-Flash the final system-compatible image:
+## 4. Source verification
 
-```bash
-fastboot flash vendor_boot <final-system-compatible-image.img>
+The build verifies the pinned OrangeFox source manifest.
+
+Repositories intentionally modified by rodin patches are validated separately from the untouched pinned projects.
+
+The verified patched development revisions are:
+
+~~text
+bootable/recovery
+a9729dd387aef007c9ed87ced989bebc5e5441b7
+
+hardware/interfaces
+61f0bcd25bdbf2b6d4d978fdfa348bf01078a8f8
+
+system/core
+d4add349bc23456cd137d73b1acbcd789aaa5ed0
+~~
+
+Binary and patch SHA-256 values are also checked by `tools/verify-build-inputs.sh`.
+
+## 5. Unified HOS PLATFORM
+
+HOS/OEM-port builds do not use a firmware-region build selector.
+
+The pinned unified PLATFORM is:
+
+`prebuilt/unified/vendor_ramdisk00`
+
+SHA-256:
+
+`dda9762619ee1cbe3019735103ddd25c62ebd9d2431e991303d5855520d93389`
+
+It contains separate module trees for:
+
+~~text
+CN
+6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k
+
+Global/MIXM + India
+6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k
+~~
+
+First-stage init automatically selects the module directory matching the running kernel.
+
+The HOS PLATFORM uses Zstandard compression.
+
+## 6. AOSP profile
+
+AOSP remains independent from the unified HOS PLATFORM.
+
+Its pinned inputs are:
+
+~~text
+prebuilt/aosp/vendor_ramdisk00
+prebuilt/aosp/bootconfig
+~~
+
+Do not replace the AOSP PLATFORM with the HOS unified PLATFORM.
+
+## 7. Build all release variants
+
+From:
+
+`device/xiaomi/rodin`
+
+run:
+
+~~bash
+./build-release.sh
+~~
+
+The script performs the complete workflow:
+
+1. apply canonical external-source patches,
+2. verify the pinned source and device inputs,
+3. compile OrangeFox,
+4. build the unified HOS AVB Enabled image,
+5. build the unified HOS AVB Disabled image,
+6. build the AOSP AVB Enabled image,
+7. build the AOSP AVB Disabled image.
+
+No firmware-region environment variable is required.
+
+## 8. Release outputs
+
+Successful builds produce:
+
+~~text
+out/target/product/rodin/OrangeFox-R12.0-NEESCHAL-rodin-HOS-AVB-ENABLED.img
+out/target/product/rodin/OrangeFox-R12.0-NEESCHAL-rodin-HOS-AVB-DISABLED.img
+out/target/product/rodin/OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-ENABLED.img
+out/target/product/rodin/OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-DISABLED.img
+~~
+
+The ordinary `vendor_boot.img` output is restored to the unified HOS AVB Enabled image after the release matrix is complete.
+
+## 9. AVB behavior
+
+HOS AVB Enabled uses the pinned unified PLATFORM unchanged.
+
+HOS AVB Disabled temporarily unpacks the same PLATFORM, removes only the first-stage `avb` and `avb_keys` fstab flags, repacks the PLATFORM, and builds the disabled image.
+
+The pinned unified PLATFORM itself remains unchanged.
+
+AOSP AVB Enabled and Disabled are handled by the dedicated AOSP builder.
+
+## 10. Flashing a test build
+
+Rodin uses slot-specific vendor boot partitions.
+
+Example:
+
+~~bash
+fastboot flash vendor_boot_a <image>.img
 fastboot reboot recovery
-```
+~~
 
-During initial testing, do not overwrite both slots.
+Valid partitions are:
 
-If recovery is required, restore the matching stock `vendor_boot.img` from the same firmware package installed on the device.
+~~text
+vendor_boot_a
+vendor_boot_b
+~~
 
-## GitHub Actions
+Do not use `vendor_boot_ab`.
 
-The workflow under `.github/workflows/build.yml` provides the verified `india` firmware profile and uses the same patching and low-memory build path described above.
+For development tests, modify only the intended slot unless there is a specific reason to change both slots.
+
+## 11. Build verification
+
+Before publishing a build, verify that:
+
+- all four expected images exist,
+- SHA-256 files are recorded,
+- HOS uses the unified Zstd PLATFORM,
+- AOSP uses the dedicated AOSP PLATFORM,
+- Fastbootd enters userspace mode,
+- recovery touch and storage work,
+- the intended AVB variant boots on the target ROM.
+
+See `docs/VERIFIED-BASELINE.md` for the current runtime-verified baseline.

@@ -1,76 +1,155 @@
-# External source patches
+# External Source Patches
 
-The rodin device tree modifies two OrangeFox source repositories outside `device/xiaomi/rodin`.
+Rodin requires a small set of canonical changes outside `device/xiaomi/rodin`.
+
+The public build workflow applies these through:
+
+`tools/apply-orangefox-patches.sh`
+
+All patch files are SHA-256 verified by `tools/verify-build-inputs.sh`.
 
 ## bootable/recovery
 
-Base commit:
-
-`fd98f33a722bd0bd52034f170bb91e2862654d6b`
-
-Base tree:
-
-`739ac37b8f59b2be91262425af8307d6e36ef589`
-
-Verified target commit:
-
-`bc786e483e55c4be5ebeebc039b8acf6ed65d6b2`
-
-Verified target tree:
-
-`60c1635bde22c205c11db32c32643f8228565206`
-
-Numbered patch series:
-
-1. deterministic rodin USB gadget ownership
-2. A/B preservation and Format Data fixes
-3. rodin UI, input and font fixes
-4. ARM64 fallback for legacy ARM32 Edify installers
-5. runtime-verified applypatch/blockimg/repacker baseline work
-6. rodin OTG DTB handling during automatic recovery reflash
-
-Machine-friendly complete patch:
+Canonical complete patch:
 
 `patches/bootable-recovery/rodin-complete.patch`
 
 SHA-256:
 
-`7a9e58bd9ac062bf93c67c080ba3ec397ce3b06530283b4eb07031e6163dc763`
+`2139f65744aa6773132b149c80adc5ff6596a67269029cd57935f8b3c076c4e0`
+
+The recovery patch contains the established rodin recovery work, including:
+
+1. deterministic rodin USB gadget ownership
+2. A/B recovery preservation and Format Data fixes
+3. rodin UI, input and font rendering fixes
+4. ARM64 fallback for legacy ARM32 Edify installers
+5. runtime-verified recovery baseline work
+6. rodin OTG DTB handling during automatic recovery reflash
+
+The corresponding numbered development patches remain under:
+
+`patches/bootable-recovery/`
+
+The complete patch is the machine-friendly input used by automated source preparation.
+
+The current verified development recovery revision is:
+
+`a9729dd387aef007c9ed87ced989bebc5e5441b7`
+
+Because later recovery development can modify lines originally introduced by the complete patch, `apply-orangefox-patches.sh` also recognizes the already-prepared recovery state through verified source markers instead of attempting to apply the complete patch twice.
 
 ## build/make
 
-Base commit:
-
-`506df226dd003a364916b6b3ee1eb3bf9064f97f`
-
-Base tree:
-
-`f08d9015d3c341f571651f99f28854b228163423`
-
-Verified target commit:
-
-`701572c48b6b328b1ce7f904aeb745440f0f3da0`
-
-Verified target tree:
-
-`fe99e6db5393c7fd725fa9b0d92d5d4e316c79b3`
-
-Machine-friendly complete patch:
+Canonical complete patch:
 
 `patches/build-make/rodin-complete.patch`
 
 SHA-256:
 
-`5f2d3f43a4d78eee6d560a4a169df30fc95de6fa2ed294e3210e684a641a8329`
+`8d7f88b979fd51280d52774ccc51205a4316f6160053a17210c246ca4944b18b`
+
+The build/make patch contains the rodin OrangeFox recovery compression/build integration required by the current source flow.
+
+The numbered development patch is stored under:
+
+`patches/build-make/`
+
+## hardware/interfaces
+
+Canonical Fastbootd BootControl patch:
+
+`patches/hardware-interfaces/rodin-fastbootd-bootcontrol-nonblocking.patch`
+
+SHA-256:
+
+`e10f789766f359d5d4b91d2fa7ee8418d5c39694f7c914d5cc02c6aa533755b8`
+
+This patch adds a non-blocking BootControl service lookup path.
+
+Rodin Fastbootd must not wait indefinitely for an optional BootControl service that may not be published in recovery.
+
+The verified development revision containing this change is:
+
+`61f0bcd25bdbf2b6d4d978fdfa348bf01078a8f8`
+
+## system/core
+
+Canonical Fastbootd optional-HAL patch:
+
+`patches/system-core/rodin-fastbootd-optional-hals-nonblocking.patch`
+
+SHA-256:
+
+`740b10ad8cae477e8d387406b61594db869f83ab3fe0a15af46ec4ca6fc655e6`
+
+This patch changes Fastbootd optional service discovery to non-blocking lookups, including the BootControl client path.
+
+It prevents recovery Fastbootd from hanging while waiting for optional HAL services that are unavailable.
+
+The verified development revision containing this change is:
+
+`d4add349bc23456cd137d73b1acbcd789aaa5ed0`
+
+## Fastbootd runtime validation
+
+The hardware/interfaces and system/core patches are part of the verified rodin Fastbootd fix.
+
+Runtime testing under both supported HOS kernel families produced:
+
+~~text
+is-userspace: yes
+product: rodin
+~~
+
+The working recovery USB ConfigFS configuration is retained separately in the rodin recovery/device source and should not be replaced by competing USB gadget ownership.
+
+## Patch application
+
+Automated source preparation uses:
+
+~~bash
+tools/apply-orangefox-patches.sh
+~~
+
+For each normal patch, the helper distinguishes between:
+
+- cleanly applicable
+- already applied
+- invalid/unexpected source state
+
+The complete recovery patch additionally has verified marker detection so an already-prepared recovery development tree is not patched twice.
+
+Do not force-apply a patch when both forward and already-applied validation fail.
 
 ## Reproducibility
 
-The complete recovery patch was independently replayed from its exact base and reproduced target tree `60c1635bde22c205c11db32c32643f8228565206`.
+The pinned OrangeFox manifest remains the pristine source baseline.
 
-The build/make patch was independently replayed from its exact base and reproduced target tree `fe99e6db5393c7fd725fa9b0d92d5d4e316c79b3`.
+Repositories intentionally changed by rodin external patches are verified separately from untouched manifest projects.
 
-The numbered recovery patches preserve development history. When replaying them with `git am`, use `--keep-cr` because the upstream font XML at the patch-3 parent uses CRLF line endings.
+The current verifier checks:
 
-For automated preparation, use `tools/apply-orangefox-patches.sh`, which applies the complete patches rather than reconstructing the numbered series.
+- 657 untouched pinned projects
+- patched recovery state
+- patched hardware/interfaces state
+- patched system/core state
+- canonical patch SHA-256 values
+- rodin binary/prebuilt inputs
 
-All published patch hashes are also recorded in `patches/SHA256SUMS`.
+This preserves source reproducibility without pretending intentionally patched repositories are still identical to their pristine manifest revisions.
+
+## Hash manifest
+
+All published patch hashes are recorded in:
+
+`patches/SHA256SUMS`
+
+Current machine-friendly patch hashes:
+
+~~text
+2139f65744aa6773132b149c80adc5ff6596a67269029cd57935f8b3c076c4e0  patches/bootable-recovery/rodin-complete.patch
+8d7f88b979fd51280d52774ccc51205a4316f6160053a17210c246ca4944b18b  patches/build-make/rodin-complete.patch
+e10f789766f359d5d4b91d2fa7ee8418d5c39694f7c914d5cc02c6aa533755b8  patches/hardware-interfaces/rodin-fastbootd-bootcontrol-nonblocking.patch
+740b10ad8cae477e8d387406b61594db869f83ab3fe0a15af46ec4ca6fc655e6  patches/system-core/rodin-fastbootd-optional-hals-nonblocking.patch
+~~

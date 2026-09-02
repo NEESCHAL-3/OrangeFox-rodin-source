@@ -2,109 +2,254 @@
 
 ## Do not flash the intermediate vendor_boot
 
-The ordinary Android build produces an intermediate recovery-oriented vendor_boot layout.
+Rodin recovery lives inside `vendor_boot`.
 
-For rodin, build with:
+The Android build first produces an intermediate recovery-oriented image. The rodin post-build packaging step combines the required PLATFORM fragment with OrangeFox and creates the final system-compatible 64 MiB image.
 
-```bash
-device/xiaomi/rodin/build-lowmem.sh vendorbootimage
-```
+Only flash the final release image.
 
-Flash only the final system-compatible 64 MiB image created by the rodin post-build step.
+Do not flash an intermediate recovery-only `vendor_boot`.
 
 ## Build fails before compilation
 
-On constrained hosts, verify available memory and swap:
+Run the verifier directly:
 
-```bash
-free -h
-swapon --show
-```
+~~bash
+tools/verify-build-inputs.sh <orangefox-root>
+~~
 
-The low-memory build path expects at least 12 GiB of swap on constrained builders.
+The verifier checks:
+
+- pinned source revisions
+- intentionally patched repositories
+- external patch hashes
+- device blobs
+- unified HOS PLATFORM hash
+- required source markers
+- helper-script syntax
+
+Fix the reported mismatch instead of bypassing the verifier.
 
 ## Source patch application fails
 
-Run the public patch helper from the OrangeFox source root:
+Use:
 
-```bash
-device/xiaomi/rodin/tools/apply-orangefox-patches.sh "$PWD"
-```
+~~bash
+tools/apply-orangefox-patches.sh
+~~
 
-The helper expects the pinned OrangeFox source state described in `PATCHES.md`.
+The helper supports an already-prepared development tree.
 
-For manual replay of the numbered recovery patches with `git am`, use `--keep-cr` because the upstream font XML at the patch-3 parent uses CRLF line endings.
+Expected behavior on an already-patched source is similar to:
 
-## Wrong firmware profile
+~~text
+BootControl non-blocking lookup patch is already applied
+fastbootd non-blocking HAL lookup patch is already applied
+OrangeFox build/make patch is already applied
+OrangeFox recovery patch is already applied (verified markers)
+~~
 
-The public source release is India-only.
+If a patch is neither applicable nor already represented by the verified source state, stop and inspect the source tree instead of forcing the patch.
 
-Use the default profile:
+## Wrong recovery profile
 
-```bash
-export RODIN_FIRMWARE_VARIANT=india
-```
+There is no China, Global or India HOS build selector anymore.
 
-Do not substitute platform ramdisks or stock `vendor_boot` images from unrelated firmware packages.
+For HyperOS/OEM-port environments use the unified HOS image.
+
+For supported AOSP-based ROMs use the AOSP image.
+
+The release matrix is:
+
+~~text
+HOS AVB Enabled
+HOS AVB Disabled
+AOSP AVB Enabled
+AOSP AVB Disabled
+~~
+
+Do not use the HOS image merely because the physical device is rodin if the installed ROM uses the separate AOSP vendor environment.
 
 ## Android or recovery does not boot after flashing
 
-Do not immediately flash random vendor_boot images from another region.
+First confirm that the correct profile was flashed:
 
-Return to the bootloader and restore the matching stock `vendor_boot.img` from the same firmware package installed on the device.
+- HOS/OEM-port ROM -> HOS image
+- supported AOSP ROM -> AOSP image
 
-During initial testing, avoid overwriting both slots.
+Then confirm the intended AVB variant.
 
-## OTG disappears after installing a ROM
+If the ROM requires first-stage AVB disabled, use the matching AVB Disabled image.
 
-The verified recovery source patches the rodin xHCI DTB state during automatic OrangeFox preservation.
+If the ROM uses its normal signed AVB configuration, prefer AVB Enabled.
 
-The expected workflow is:
+Also confirm that only the intended slot was modified.
 
-```text
-Flash ROM
--> allow OrangeFox to preserve itself
--> reboot recovery
--> Format Data if required
--> boot Android
-```
+Useful commands:
 
-If testing a build without the runtime OTG patch, manually reflashing a known-good OrangeFox image may temporarily restore OTG, but the correct fix is to use the current patched recovery source.
+~~bash
+fastboot getvar current-slot
+fastboot getvar product
+~~
 
-See `USB-OTG.md`.
+## Unified HOS kernel mismatch
 
-## Format Data after ROM installation
+The verified HOS kernel families are:
 
-Do not wipe immediately in the middle of the automatic preservation/merge transition.
+CN:
 
-Allow OrangeFox preservation to finish, reboot recovery, then Format Data if the ROM requires it.
+`6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k`
+
+Global/MIXM and India:
+
+`6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k`
+
+The unified PLATFORM selects modules using the exact running kernel release.
+
+If a substantially different kernel release is used, it may fall outside the verified module ABI baseline.
+
+Check in recovery:
+
+~~bash
+adb shell uname -r
+~~
+
+## Fastbootd does not appear
+
+From OrangeFox:
+
+~~bash
+adb reboot fastboot
+~~
+
+Then verify:
+
+~~bash
+fastboot devices
+fastboot getvar is-userspace
+fastboot getvar product
+fastboot getvar current-slot
+~~
+
+Expected:
+
+~~text
+is-userspace: yes
+product: rodin
+~~
+
+Rodin Fastbootd depends on the recovery USB ConfigFS setup and the non-blocking BootControl / optional-HAL lookup fixes.
+
+Do not reintroduce competing ConfigFS ownership or remove the Fastbootd source patches without device evidence.
 
 ## Touch problems
 
-The rodin recovery uses Xiaomi's TouchReport raw-frame path and recovery-specific module handling.
+Check that the rodin-specific touch modules loaded:
 
-If touch regresses, capture:
+~~bash
+adb shell "cat /proc/modules | grep -E "goodix|focal|xiaomi_touch|scp""
+~~
 
-```bash
-adb shell getprop vendor.touch.modules.ready
-adb shell getprop vendor.touch.service.ready
-adb shell 'dmesg | grep -iE "goodix|focal|touch|scp|11011800" | tail -200'
-```
+The unified HOS PLATFORM makes the OrangeFox device modules available in both supported kernel-release module directories.
 
-Do not re-enable a generic second-pass vendor module loader without validating `scp.ko`; the recovery-specific module path intentionally avoids the unsafe SCP initialization observed on rodin.
+If touch fails after changing modules or metadata, verify the exact running kernel, module dependency metadata and `modules.load.recovery`.
+
+## Haptics problems
+
+Check:
+
+~~bash
+adb shell "cat /proc/modules | grep si_haptic"
+~~
+
+If `si_haptic` is not loaded, inspect the recovery module tree and the haptics loader before changing unrelated vibration framework files.
+
+## Storage or userdata problems
+
+Confirm the userdata block mapping:
+
+~~bash
+adb shell ls -l /dev/block/by-name/userdata
+~~
+
+Also check mounted filesystems and recovery logs.
+
+Do not modify or format `/metadata` automatically while debugging a storage issue.
 
 ## FBE decryption problems
 
-The current tree includes the vendor security-service path required for rodin KeyMint, Gatekeeper, MiTEE and Weaver integration.
+Collect:
 
-If `/data` no longer decrypts after updating firmware inputs, treat the new firmware as a compatibility change and revalidate the matching vendor services, Trusted Applications, VINTF declarations and secure-element path rather than replacing only one binary.
+~~bash
+adb shell getprop
+adb shell mount
+adb shell dmesg
+~~
+
+and the OrangeFox recovery log.
+
+Do not assume every decryption failure is caused by the unified PLATFORM; confirm the installed ROM, encryption state and key-management services first.
+
+## OTG disappears after installing a ROM
+
+Rodin recovery uses a recovery-host DTB transformation for the working USB/OTG configuration.
+
+The final builder removes only the targeted MediaTek USB offload property from the recovery-host DTB.
+
+If OTG disappears after a ROM install, confirm that OrangeFox recovery preservation restored the final system-compatible vendor_boot rather than a recovery-only intermediate image.
+
+## Format Data after ROM installation
+
+Use the verified OrangeFox Format Data workflow.
+
+Do not add automatic `/metadata` formatting as a workaround.
+
+If Format Data behavior changes after recovery modifications, compare against the verified baseline before changing partition handling.
+
+## AVB Enabled vs Disabled
+
+HOS AVB Enabled uses the pinned unified PLATFORM unchanged.
+
+HOS AVB Disabled is generated from the same PLATFORM by removing only first-stage `avb` and `avb_keys` fstab flags.
+
+The pinned PLATFORM itself should never be overwritten with the disabled derivative.
+
+If an AVB-enabled image bootloops on a ROM known to require AVB disabled, use the matching disabled image.
+
+## Build output size
+
+The rodin HOS builder rejects a combined vendor ramdisk size at or above:
+
+`62000000 bytes`
+
+The verified unified HOS packaging remains below this limit.
+
+If the limit is exceeded after adding recovery content, reduce unnecessary recovery payload rather than deleting stock regional kernel modules from the unified PLATFORM.
 
 ## Patch integrity
 
-From the device-tree repository root:
+Canonical external patches are verified by SHA-256.
 
-```bash
-sha256sum -c patches/SHA256SUMS
-```
+If verification fails, compare the patch in the live device tree with the canonical repository copy.
 
-All published patch entries should report `OK`.
+Do not silently replace or edit a pinned patch without also updating its documented source baseline and verification hash.
+
+## Recovery logs
+
+Useful data when reporting a problem:
+
+~~bash
+adb shell uname -r
+adb shell cat /proc/modules
+adb shell getprop
+adb shell dmesg
+adb shell ls -l /dev/block/by-name
+~~
+
+Also include:
+
+- flashed recovery profile
+- AVB mode
+- current slot
+- installed ROM family
+- exact kernel release

@@ -1,88 +1,226 @@
-# rodin recovery architecture
+# Rodin OrangeFox Architecture
 
-This document describes the current OrangeFox architecture for Xiaomi `rodin`.
+This document describes the final recovery and `vendor_boot` architecture used by OrangeFox on Xiaomi `rodin`.
 
-## Recovery location
+## 1. Recovery location
 
-Rodin uses Android vendor boot header v4. Recovery is not stored in a standalone `recovery` partition.
+Rodin has no standalone recovery partition.
 
-The final image contains two vendor ramdisk fragments:
+Recovery is carried inside the slot-specific `vendor_boot` partition:
 
-1. a firmware-specific type-1 platform fragment; and
-2. a named type-2 OrangeFox recovery fragment.
+- `vendor_boot_a`
+- `vendor_boot_b`
 
-The platform fragment is selected from the verified India profile. It retains the first-stage runtime, SELinux data, fstab, firmware and stock kernel modules required for normal Android boot. Stock recovery userspace replaced by OrangeFox is pruned so the combined ramdisk remains within the size known to boot reliably on the device.
+The image uses vendor boot header version 4.
 
-The OrangeFox fragment contains the recovery userspace and the recovery-only device integration.
+## 2. Vendor ramdisk layout
 
-Both fragments use LZ4. A zstd recovery-fragment experiment failed before ADB became available on real hardware, so zstd is not used for the final rodin recovery image.
+The final HOS/OEM-port `vendor_boot` contains two vendor ramdisk fragments:
 
-## System-compatible vendor_boot
+- type 1: PLATFORM
+- type 2: RECOVERY
 
-A normal Android `vendorbootimage` build produces an intermediate recovery-oriented layout. That intermediate image must not be flashed.
+The PLATFORM fragment supplies the first-stage Android environment required by both normal boot and recovery boot.
 
-`device/xiaomi/rodin/build-lowmem.sh vendorbootimage` invokes `tools/build-system-compatible-vendor-boot.sh` after the Android build. The post-build step combines the selected stock platform fragment with the OrangeFox recovery fragment and emits the final 64 MiB system-compatible `vendor_boot` image.
+The RECOVERY fragment contains OrangeFox.
 
-Normal Android boot therefore continues to receive the retained platform runtime, while recovery boot receives the platform fragment followed by OrangeFox.
+Conceptually:
 
-## A/B and recovery preservation
+~~text
+vendor_boot
+├── PLATFORM
+│   ├── first-stage init
+│   ├── fstab
+│   ├── SELinux/runtime files
+│   ├── firmware
+│   └── kernel modules
+└── RECOVERY
+    └── OrangeFox
+~~
 
-Rodin is an A/B Virtual A/B device.
+A recovery-only `vendor_boot` image is not suitable for normal Android boot on rodin.
 
-The recovery source patches provide rodin-specific A/B preservation so OrangeFox can be reinstalled into the target slot after a ROM installation.
+## 3. Unified HOS PLATFORM
 
-The verified workflow is:
+HOS/OEM-port recovery uses one pinned unified PLATFORM:
 
-```text
-Flash ROM
--> allow OrangeFox to preserve itself
--> reboot recovery
--> Format Data if required
--> boot Android
-```
+`prebuilt/unified/vendor_ramdisk00`
 
-The preservation path does not treat the target DTB as byte-for-byte immutable. For recovery USB OTG compatibility it intentionally removes the single `mediatek,usb-offload` property from the validated rodin xHCI DTB node before repacking the target-slot image.
+SHA-256:
 
-## UFS slot switching and Fastbootd
+`dda9762619ee1cbe3019735103ddd25c62ebd9d2431e991303d5855520d93389`
 
-Rodin uses MediaTek UFS handling that differs from generic recovery assumptions.
+The PLATFORM uses Zstandard compression.
 
-The device integration switches the UFS boot LUN through the MediaTek BSG interface for slot operations. Recovery-side Fastbootd also carries rodin-specific USB gadget ownership handling so gadget setup is deterministic instead of racing between recovery components.
+It contains two complete kernel-module trees:
 
-## Kernel modules and touch
+~~text
+/lib/modules/
+├── 6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k/
+└── 6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k/
+~~
 
-The OrangeFox configuration intentionally avoids the generic second-pass `TW_LOAD_VENDOR_MODULES` behavior used by some TWRP trees.
+The 6.6.77 tree corresponds to the CN kernel family.
 
-On rodin that path can attempt to load `scp.ko` in a recovery environment without the SCP reserved-memory setup expected by the stock driver, which was observed to panic in `scp_region_info_init()`.
+The 6.6.89 tree corresponds to the Global/MIXM and India kernel family.
 
-The recovery fragment therefore carries a controlled module path for the recovery environment. The recovery-only SCP integration prevents unsafe SCP registration while preserving the stock ABI expected by the remaining modules. Goodix and FocalTech SCP offload helpers are disabled for recovery while their AP-side SPI paths remain available.
+There is no build-time firmware-region selector.
 
-Rodin touch uses Xiaomi's raw-frame TouchReport path rather than relying only on the standard Goodix event parser. The matching TouchReport service, Goodix/FocalTech processing components, configurations and required isolated runtime dependencies are included in the recovery environment.
+## 4. Automatic module selection
 
-Real-device testing confirmed functional multitouch input in OrangeFox, including the Goodix path and the corresponding FocalTech path.
+Android first-stage init reads the running kernel release with `uname -r`.
 
-## FBE and security services
+When an exact matching directory exists under `/lib/modules`, the first-stage module loader uses that directory.
 
-File-based encryption support on rodin requires more than the generic recovery crypto stack.
+Therefore:
 
-The recovery integration includes the matching vendor security-service path required by the device, including KeyMint, Gatekeeper, MiTEE support, `tee-supplicant`, the required proprietary runtime dependency and the matching Trusted Applications.
+~~text
+CN 6.6.77 kernel
+    -> /lib/modules/6.6.77-.../
 
-The vendor security HALs must execute from their expected `/vendor/bin/hw` paths because the MiTEE authentication path validates the client executable identity.
+Global/India 6.6.89 kernel
+    -> /lib/modules/6.6.89-.../
+~~
 
-The recovery also integrates the device Weaver path and the related secure-element components required by synthetic-password unlock.
+No region property, shell script, Android service or custom userspace selector is required.
 
-On-device validation confirmed that the recovery can unlock the lockscreen-backed FBE credential for user 0 and mount `/data` read-write.
+The module metadata uses paths relative to the selected module directory so `libmodprobe` resolves dependencies inside the correct ABI tree.
 
-## Firmware profiles
+## 5. Global and India relationship
 
-The public source release uses the verified India platform ramdisk at `prebuilt/india/vendor_ramdisk00`.
+The stock Global/MIXM and India PLATFORM ramdisks were compared directly.
 
-The firmware-specific platform fragment is combined with the OrangeFox recovery fragment by the rodin post-build flow. Other regional firmware profiles are not part of this published build configuration.
+Their complete file layouts match.
 
-## OTG DTB handling
+Their 244-module payloads are identical and use the same 6.6.89 module ABI.
 
-The build-time and runtime OTG handling is documented separately in [`USB-OTG.md`](USB-OTG.md).
+The observed differences outside the module payload were limited to regional/build-property data and `system/etc/copylib.txt`.
 
-## External recovery patches
+The unified HOS image therefore uses one 6.6.89 module tree for both Global/MIXM and India.
 
-The exact recovery and build-system source bases, target commits and patch hashes are documented in [`PATCHES.md`](PATCHES.md).
+## 6. CN relationship
+
+CN uses the 6.6.77 kernel family and a different module ABI.
+
+Its complete stock module set is retained independently in the unified PLATFORM.
+
+No Global module replaces a CN module at runtime, and no CN stock module replaces a Global stock module at runtime.
+
+## 7. OrangeFox device modules
+
+OrangeFox retains its rodin-specific recovery modules, including the touch, haptics and secure-element related modules needed by recovery.
+
+The proven device-specific modules are made available inside both kernel-release module directories so first-stage recovery loading continues to resolve correctly after exact kernel-directory selection.
+
+The same recovery module set was runtime-tested successfully under both supported kernel families.
+
+## 8. Compression
+
+The final HOS layout uses:
+
+~~text
+PLATFORM  -> Zstandard
+RECOVERY  -> LZ4
+~~
+
+Both verified rodin kernel families support Zstandard initramfs decompression.
+
+The unified design was introduced because carrying both complete regional module sets with the previous LZ4 PLATFORM exceeded the practical `vendor_boot` size budget.
+
+Zstandard provides enough space to retain both complete module sets without stripping module metadata or pruning stock kernel modules.
+
+## 9. Recovery DTB
+
+The final image uses the pinned rodin DTB as the build input.
+
+During packaging, `tools/make-recovery-host-dtb.py` creates the recovery-host DTB used by the final `vendor_boot`.
+
+The recovery-specific DTB transformation removes only the targeted USB offload property required for the working recovery USB/OTG behavior.
+
+Fastbootd does not rely on additional DT replacement hacks.
+
+## 10. Fastbootd
+
+Rodin Fastbootd uses the recovery USB ConfigFS setup together with two external-source fixes:
+
+- non-blocking BootControl service lookup in `hardware/interfaces`
+- non-blocking optional HAL lookup in `system/core/fastbootd`
+
+These prevent Fastbootd from blocking indefinitely when optional services are unavailable in recovery.
+
+Runtime verification confirmed:
+
+~~text
+is-userspace: yes
+product: rodin
+~~
+
+under both supported HOS kernel families.
+
+## 11. AVB variants
+
+The HOS AVB Enabled image uses the pinned unified PLATFORM unchanged.
+
+The HOS AVB Disabled image is derived from that same PLATFORM during packaging.
+
+Only the first-stage `avb` and `avb_keys` fstab flags are removed.
+
+The pinned unified PLATFORM stored in the source tree remains AVB-enabled and immutable.
+
+## 12. AOSP architecture
+
+AOSP remains a separate profile.
+
+It uses:
+
+- `prebuilt/aosp/vendor_ramdisk00`
+- `prebuilt/aosp/bootconfig`
+
+The AOSP builder does not use the unified HOS PLATFORM and does not carry the CN HOS module tree.
+
+This separation is intentional because the AOSP vendor environment differs from the OEM/HOS environment.
+
+## 13. Build flow
+
+The public release entrypoint is:
+
+`./build-release.sh`
+
+The flow is:
+
+~~text
+apply canonical external patches
+        |
+verify source and binary inputs
+        |
+compile OrangeFox recovery
+        |
+        +--> unified HOS AVB Enabled
+        |
+        +--> unified HOS AVB Disabled
+        |
+        +--> AOSP AVB Enabled
+        |
+        +--> AOSP AVB Disabled
+~~
+
+The default `vendor_boot.img` is restored to the unified HOS AVB Enabled image after all release variants are generated.
+
+## 14. Runtime validation
+
+The unified HOS architecture has been boot-tested with:
+
+- CN 6.6.77 kernel
+- Global/MIXM 6.6.89 kernel
+
+The same unified `vendor_boot` successfully provided:
+
+- the correct regional stock module tree
+- OrangeFox device modules
+- touch
+- haptics
+- userdata block mapping
+- recovery boot
+- Fastbootd
+
+This runtime behavior is the compatibility baseline for the unified HOS design.

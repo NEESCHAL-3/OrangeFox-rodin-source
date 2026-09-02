@@ -1,21 +1,49 @@
 # Developer Documentation
 
-This directory contains the technical documentation for the Xiaomi `rodin` OrangeFox Recovery source.
+Documentation for OrangeFox Recovery on Xiaomi `rodin`.
 
 ## Start here
 
-- [`DEVELOPMENT.md`](DEVELOPMENT.md) — source setup, patch application, build and validation workflow.
-- [`VERIFIED-BASELINE.md`](VERIFIED-BASELINE.md) — known-good commits, hashes and runtime baseline.
-- [`../BUILDING.md`](../BUILDING.md) — concise build instructions.
-- [`../CREDITS.md`](../CREDITS.md) — source lineage and attribution.
-- [`../CONTRIBUTING.md`](../CONTRIBUTING.md) — contribution policy.
+- [Building](../BUILDING.md) — complete public build workflow
+- [Architecture](ARCHITECTURE.md) — vendor_boot and recovery architecture
+- [Unified HOS](UNIFIED-HOS.md) — CN + Global/MIXM + India unified PLATFORM design
+- [Compatibility](COMPATIBILITY.md) — HOS/AOSP profiles and verified firmware families
+- [Development](DEVELOPMENT.md) — contributor workflow
+- [Verified Baseline](VERIFIED-BASELINE.md) — pinned hashes and runtime-tested state
+- [External Patches](PATCHES.md) — recovery, build/make and Fastbootd source patches
+- [Troubleshooting](TROUBLESHOOTING.md) — build and runtime debugging
+- [USB OTG](USB-OTG.md) — rodin recovery USB/OTG handling
+- [Legacy Edify](LEGACY-EDIFY.md) — ARM32 installer compatibility
 
-## Scope
+## Release model
 
-- Device: Xiaomi `rodin`
-- Products: POCO X7 Pro / Redmi Turbo 4
-- Recovery layout: A/B `vendor_boot`
-- Supported firmware profile: **India only**
-- Build target: `vendorbootimage`
+The current release matrix contains four images:
 
-The source intentionally does not provide Global or China build profiles. Runtime claims in this repository refer only to the tested India configuration.
+- unified HOS / OEM-Port — AVB Enabled
+- unified HOS / OEM-Port — AVB Disabled
+- AOSP — AVB Enabled
+- AOSP — AVB Disabled
+
+HOS uses one unified PLATFORM for supported CN, Global/MIXM and India firmware.
+
+AOSP remains a separate profile.
+
+## Build entrypoint
+
+From `device/xiaomi/rodin` run:
+
+`./build-release.sh`
+
+The release workflow applies canonical external patches, verifies pinned inputs, compiles OrangeFox and generates all four release images.
+
+## Verified HOS kernel families
+
+CN:
+
+`6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k`
+
+Global/MIXM and India:
+
+`6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k`
+
+See [Unified HOS](UNIFIED-HOS.md) for details.

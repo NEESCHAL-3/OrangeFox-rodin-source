@@ -1,129 +1,251 @@
 # Development Workflow
 
-This document describes the reproducible development path for OrangeFox Recovery on Xiaomi `rodin`.
+This document describes the supported contributor workflow for OrangeFox on Xiaomi `rodin`.
 
 ## 1. Source layout
 
-Place this repository at:
+The device tree must live inside the OrangeFox source tree at:
 
-```text
-device/xiaomi/rodin
-```
+`device/xiaomi/rodin`
 
-The external OrangeFox recovery and Android build-system modifications are distributed as canonical patches under `patches/`.
+Expected layout:
 
-## 2. Verify patch integrity
+~~text
+<orangefox-root>/
+├── bootable/recovery
+├── build/make
+├── hardware/interfaces
+├── system/core
+├── vendor/recovery
+└── device/xiaomi/rodin
+~~
 
-From `device/xiaomi/rodin`:
+The build and verification scripts derive the OrangeFox source root from this location.
 
-```bash
-sha256sum -c patches/SHA256SUMS
-```
+Do not run release builds from a standalone copy of the device repository.
 
-Every entry must report `OK` before patch application.
+## 2. Canonical external patches
 
-## 3. Recovery source baseline
+Rodin carries required source changes outside the device tree.
 
-Expected clean OrangeFox recovery base:
+Canonical patch files are stored under:
 
-```text
-fd98f33a722bd0bd52034f170bb91e2862654d6b
-```
+~~text
+patches/bootable-recovery/
+patches/build-make/
+patches/hardware-interfaces/
+patches/system-core/
+~~
 
-Apply the rodin recovery series from the Android source root:
+They cover:
 
-```bash
-git -C bootable/recovery am --keep-cr device/xiaomi/rodin/patches/bootable-recovery/000*.patch
-```
+- OrangeFox/TWRP rodin recovery behavior
+- build/make integration
+- non-blocking BootControl lookup
+- non-blocking optional Fastbootd HAL lookup
 
-Expected final recovery commit:
+Apply them with:
 
-```text
-bc786e483e55c4be5ebeebc039b8acf6ed65d6b2
-```
+~~bash
+tools/apply-orangefox-patches.sh
+~~
 
-## 4. build/make baseline
+The helper is designed to tolerate an already-prepared development tree and must never blindly apply the complete recovery patch twice.
 
-Expected clean `build/make` base:
+## 3. Source verification
 
-```text
-506df226dd003a364916b6b3ee1eb3bf9064f97f
-```
+Run:
 
-Apply the build integration patch:
+~~bash
+tools/verify-build-inputs.sh <orangefox-root>
+~~
 
-```bash
-git -C build/make am --keep-cr device/xiaomi/rodin/patches/build-make/0001-build-integrate-OrangeFox-recovery-packaging-support.patch
-```
+The verifier checks:
 
-Expected final build/make commit:
+- the pinned OrangeFox source manifest
+- intentionally patched external repositories
+- canonical patch SHA-256 values
+- device binary inputs
+- required rodin source markers
+- the unified HOS PLATFORM SHA-256
+- shell/Python helper integrity
 
-```text
-701572c48b6b328b1ce7f904aeb745440f0f3da0
-```
+Untouched source projects must continue to match the pinned manifest.
 
-## 5. Firmware profile
+Do not solve a verification failure by weakening or removing integrity checks.
 
-Only the India profile is supported:
+## 4. Unified HOS development model
 
-```bash
-export RODIN_FIRMWARE_VARIANT=india
-```
+HOS/OEM-port recovery no longer has China, Global or India build profiles.
 
-The required platform ramdisk is:
+There is one pinned unified PLATFORM:
 
-```text
-device/xiaomi/rodin/prebuilt/india/vendor_ramdisk00
-```
+`prebuilt/unified/vendor_ramdisk00`
 
-## 6. Build
+SHA-256:
 
-From the Android/OrangeFox source root:
+`dda9762619ee1cbe3019735103ddd25c62ebd9d2431e991303d5855520d93389`
 
-```bash
-export RODIN_FIRMWARE_VARIANT=india
-device/xiaomi/rodin/build-lowmem.sh vendorbootimage
-```
+It contains independent module trees for:
 
-The device has recovery inside `vendor_boot`; do not treat rodin as a standalone recovery-partition device.
+- CN 6.6.77
+- Global/MIXM + India 6.6.89
 
-## 7. Runtime validation
+First-stage init selects the correct module directory from the running kernel release.
 
-A source change is not considered verified only because it compiles.
+Do not add a firmware-region build variable back into the build system.
 
-For recovery-sensitive changes validate, where applicable:
+## 5. Unified PLATFORM maintenance
 
-- recovery boot
-- touch and UI input
-- decryption/FBE
+The unified PLATFORM is a pinned, verified build input.
+
+Do not casually regenerate or modify it during unrelated recovery development.
+
+Any intentional PLATFORM update must include:
+
+1. documented donor inputs,
+2. complete module-count verification,
+3. module metadata validation,
+4. first-stage fstab validation,
+5. compression/size validation,
+6. runtime testing on the supported kernel families,
+7. a new SHA-256 in the verifier and documentation.
+
+The stored PLATFORM is AVB-enabled.
+
+The AVB-disabled HOS image is derived temporarily during packaging and must not overwrite the pinned PLATFORM.
+
+## 6. AOSP development model
+
+AOSP remains separate from HOS.
+
+Pinned AOSP inputs are:
+
+~~text
+prebuilt/aosp/vendor_ramdisk00
+prebuilt/aosp/bootconfig
+~~
+
+Changes to unified HOS handling must not silently modify the AOSP build path.
+
+Likewise, AOSP-specific changes should not add CN/HOS module content to the AOSP profile.
+
+## 7. Building
+
+For a complete release build, run from `device/xiaomi/rodin`:
+
+~~bash
+./build-release.sh
+~~
+
+This is the preferred public build entrypoint.
+
+It performs:
+
+~~text
+apply patches
+-> verify inputs
+-> compile OrangeFox
+-> HOS AVB Enabled
+-> HOS AVB Disabled
+-> AOSP AVB Enabled
+-> AOSP AVB Disabled
+~~
+
+For lower-level development, `build-lowmem.sh vendorbootimage` can still be used when working on OrangeFox itself.
+
+A final release must still be produced through the complete release workflow.
+
+## 8. Release matrix
+
+The supported release outputs are exactly:
+
+~~text
+OrangeFox-R12.0-NEESCHAL-rodin-HOS-AVB-ENABLED.img
+OrangeFox-R12.0-NEESCHAL-rodin-HOS-AVB-DISABLED.img
+OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-ENABLED.img
+OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-DISABLED.img
+~~
+
+Do not reintroduce separate CN, Global or India HOS release files.
+
+## 9. Fastbootd development
+
+The working Fastbootd configuration depends on both:
+
+- rodin recovery USB ConfigFS ownership
+- non-blocking optional HAL/service lookup patches
+
+Do not replace the proven USB recovery configuration or add competing ConfigFS owners without device evidence.
+
+When testing Fastbootd, verify:
+
+~~text
+fastboot getvar is-userspace
+fastboot getvar product
+fastboot getvar current-slot
+~~
+
+Expected userspace state:
+
+~~text
+is-userspace: yes
+product: rodin
+~~
+
+## 10. Recovery module development
+
+OrangeFox retains a small rodin-specific recovery module set for touch, haptics and related device functionality.
+
+The unified HOS PLATFORM exposes these modules through both supported kernel-release module directories.
+
+If changing recovery modules or module metadata, verify:
+
+- module dependency resolution
+- first-stage recovery load list
+- touch
+- haptics
+- storage
+- both supported HOS kernel families
+
+Do not assume a module change is cross-kernel compatible without runtime evidence.
+
+## 11. Runtime validation
+
+At minimum, recovery changes should be checked for:
+
+- OrangeFox boot
+- ADB
+- touch
+- haptics
+- userdata mapping
+- FBE decryption when relevant
 - MTP
 - Fastbootd
-- A/B slot handling
-- Format Data
-- recovery preservation after ROM installation
-- legacy Edify fallback
-- USB OTG after ROM install and automatic recovery preservation
+- slot reporting
+- USB OTG when USB/DT behavior changes
 
-## 8. ROM-install recovery flow
+Changes touching the unified HOS PLATFORM require testing against both the 6.6.77 and 6.6.89 kernel families.
 
-The verified flow is:
+## 12. ROM-install preservation
 
-```text
-Flash ROM
-   ↓
-allow OrangeFox to preserve/repack recovery
-   ↓
-reboot recovery
-   ↓
-Format Data when required
-   ↓
-boot system
-```
+Rodin recovery preservation during ROM installation is part of the verified recovery flow.
 
-The runtime rodin OTG handling patches the target-slot DTB during the recovery preservation/repack path.
+Changes to installer handling, vendor_boot repacking or recovery preservation must not overwrite the PLATFORM fragment with a recovery-only image.
 
-## 9. Patch maintenance
+The final result must remain a system-compatible vendor_boot.
 
-Do not casually regenerate canonical patches after documentation-only changes.
+## 13. Patch maintenance
 
-When runtime source changes intentionally, update the relevant patch series, regenerate `patches/SHA256SUMS`, replay the patches against their documented clean bases, and perform device runtime validation before changing the verified baseline.
+When an external-source change is intentionally updated:
+
+1. update the source implementation,
+2. regenerate the corresponding canonical patch,
+3. update its SHA-256 verification,
+4. run `git diff --check`,
+5. run the complete preflight verifier,
+6. rebuild the release matrix,
+7. perform relevant runtime tests,
+8. document the new verified baseline.
+
+Avoid accumulating undocumented local edits outside the canonical patch workflow.
