@@ -1,5 +1,7 @@
 # Building OrangeFox for Xiaomi rodin
 
+[Repository](README.md) / [Documentation](docs/README.md)
+
 This document describes the supported public build workflow for Xiaomi `rodin`.
 
 The device tree must be located at:
@@ -7,6 +9,23 @@ The device tree must be located at:
 `device/xiaomi/rodin`
 
 inside a compatible OrangeFox 14.1 source tree.
+
+<details>
+<summary>On this page</summary>
+
+- [1. Required host tools](#1-required-host-tools)
+- [2. Device tree](#2-device-tree)
+- [3. Pinned external patches](#3-pinned-external-patches)
+- [4. Source verification](#4-source-verification)
+- [5. Unified HOS PLATFORM](#5-unified-hos-platform)
+- [6. AOSP profile](#6-aosp-profile)
+- [7. Build all release variants](#7-build-all-release-variants)
+- [8. Release outputs](#8-release-outputs)
+- [9. AVB behavior](#9-avb-behavior)
+- [10. Flashing a test build](#10-flashing-a-test-build)
+- [11. Build verification](#11-build-verification)
+
+</details>
 
 ## 1. Required host tools
 
@@ -32,17 +51,22 @@ Clone or place this repository at:
 
 Example source layout:
 
-~~text
+```text
 <orangefox-root>/
 ├── bootable/
+│   └── recovery/
 ├── build/
+│   └── make/
+├── device/
+│   └── xiaomi/
+│       └── rodin/
 ├── hardware/
+│   └── interfaces/
 ├── system/
-├── vendor/
-└── device/
-    └── xiaomi/
-        └── rodin/
-~~
+│   └── core/
+└── vendor/
+    └── recovery/
+```
 
 Do not run the release build from a standalone copy of this repository outside the Android source tree.
 
@@ -71,16 +95,11 @@ Repositories intentionally modified by rodin patches are validated separately fr
 
 The verified patched development revisions are:
 
-~~text
-bootable/recovery
-a9729dd387aef007c9ed87ced989bebc5e5441b7
-
-hardware/interfaces
-61f0bcd25bdbf2b6d4d978fdfa348bf01078a8f8
-
-system/core
-d4add349bc23456cd137d73b1acbcd789aaa5ed0
-~~
+| External repository | Verified development revision |
+| --- | --- |
+| `bootable/recovery` | `a9729dd387aef007c9ed87ced989bebc5e5441b7` |
+| `hardware/interfaces` | `61f0bcd25bdbf2b6d4d978fdfa348bf01078a8f8` |
+| `system/core` | `d4add349bc23456cd137d73b1acbcd789aaa5ed0` |
 
 Binary and patch SHA-256 values are also checked by `tools/verify-build-inputs.sh`.
 
@@ -98,13 +117,10 @@ SHA-256:
 
 It contains separate module trees for:
 
-~~text
-CN
-6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k
-
-Global/MIXM + India
-6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k
-~~
+| Firmware family | Verified kernel release |
+| --- | --- |
+| CN | `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k` |
+| Global/MIXM and India | `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k` |
 
 First-stage init automatically selects the module directory matching the running kernel.
 
@@ -116,10 +132,11 @@ AOSP remains independent from the unified HOS PLATFORM.
 
 Its pinned inputs are:
 
-~~text
-prebuilt/aosp/vendor_ramdisk00
-prebuilt/aosp/bootconfig
-~~
+```text
+prebuilt/aosp/
+├── bootconfig
+└── vendor_ramdisk00
+```
 
 Do not replace the AOSP PLATFORM with the HOS unified PLATFORM.
 
@@ -131,9 +148,9 @@ From:
 
 run:
 
-~~bash
+```bash
 ./build-release.sh
-~~
+```
 
 The script performs the complete workflow:
 
@@ -151,12 +168,13 @@ No firmware-region environment variable is required.
 
 Successful builds produce:
 
-~~text
-out/target/product/rodin/OrangeFox-R12.0-NEESCHAL-rodin-HOS-AVB-ENABLED.img
-out/target/product/rodin/OrangeFox-R12.0-NEESCHAL-rodin-HOS-AVB-DISABLED.img
-out/target/product/rodin/OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-ENABLED.img
-out/target/product/rodin/OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-DISABLED.img
-~~
+```text
+out/target/product/rodin/
+├── OrangeFox-R12.0-NEESCHAL-rodin-HOS-AVB-ENABLED.img
+├── OrangeFox-R12.0-NEESCHAL-rodin-HOS-AVB-DISABLED.img
+├── OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-ENABLED.img
+└── OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-DISABLED.img
+```
 
 The ordinary `vendor_boot.img` output is restored to the unified HOS AVB Enabled image after the release matrix is complete.
 
@@ -176,17 +194,17 @@ Rodin uses slot-specific vendor boot partitions.
 
 Example:
 
-~~bash
+```bash
 fastboot flash vendor_boot_a <image>.img
 fastboot reboot recovery
-~~
+```
 
 Valid partitions are:
 
-~~text
+```text
 vendor_boot_a
 vendor_boot_b
-~~
+```
 
 Do not use `vendor_boot_ab`.
 
@@ -204,4 +222,8 @@ Before publishing a build, verify that:
 - recovery touch and storage work,
 - the intended AVB variant boots on the target ROM.
 
-See `docs/VERIFIED-BASELINE.md` for the current runtime-verified baseline.
+See [Verified Runtime Baseline](docs/VERIFIED-BASELINE.md) for the current runtime-verified baseline.
+
+---
+
+[Back to documentation](docs/README.md)

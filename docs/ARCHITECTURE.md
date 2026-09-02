@@ -1,6 +1,28 @@
 # Rodin OrangeFox Architecture
 
+[Repository](../README.md) / [Documentation](README.md)
+
 This document describes the final recovery and `vendor_boot` architecture used by OrangeFox on Xiaomi `rodin`.
+
+<details>
+<summary>On this page</summary>
+
+- [1. Recovery location](#1-recovery-location)
+- [2. Vendor ramdisk layout](#2-vendor-ramdisk-layout)
+- [3. Unified HOS PLATFORM](#3-unified-hos-platform)
+- [4. Automatic module selection](#4-automatic-module-selection)
+- [5. Global and India relationship](#5-global-and-india-relationship)
+- [6. CN relationship](#6-cn-relationship)
+- [7. OrangeFox device modules](#7-orangefox-device-modules)
+- [8. Compression](#8-compression)
+- [9. Recovery DTB](#9-recovery-dtb)
+- [10. Fastbootd](#10-fastbootd)
+- [11. AVB variants](#11-avb-variants)
+- [12. AOSP architecture](#12-aosp-architecture)
+- [13. Build flow](#13-build-flow)
+- [14. Runtime validation](#14-runtime-validation)
+
+</details>
 
 ## 1. Recovery location
 
@@ -26,7 +48,7 @@ The RECOVERY fragment contains OrangeFox.
 
 Conceptually:
 
-~~text
+```text
 vendor_boot
 ├── PLATFORM
 │   ├── first-stage init
@@ -36,7 +58,7 @@ vendor_boot
 │   └── kernel modules
 └── RECOVERY
     └── OrangeFox
-~~
+```
 
 A recovery-only `vendor_boot` image is not suitable for normal Android boot on rodin.
 
@@ -54,11 +76,11 @@ The PLATFORM uses Zstandard compression.
 
 It contains two complete kernel-module trees:
 
-~~text
+```text
 /lib/modules/
 ├── 6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k/
 └── 6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k/
-~~
+```
 
 The 6.6.77 tree corresponds to the CN kernel family.
 
@@ -74,13 +96,10 @@ When an exact matching directory exists under `/lib/modules`, the first-stage mo
 
 Therefore:
 
-~~text
-CN 6.6.77 kernel
-    -> /lib/modules/6.6.77-.../
-
-Global/India 6.6.89 kernel
-    -> /lib/modules/6.6.89-.../
-~~
+| Running kernel | Selected module directory |
+| --- | --- |
+| CN 6.6.77 | `/lib/modules/6.6.77-.../` |
+| Global/India 6.6.89 | `/lib/modules/6.6.89-.../` |
 
 No region property, shell script, Android service or custom userspace selector is required.
 
@@ -118,10 +137,10 @@ The same recovery module set was runtime-tested successfully under both supporte
 
 The final HOS layout uses:
 
-~~text
-PLATFORM  -> Zstandard
-RECOVERY  -> LZ4
-~~
+| Ramdisk fragment | Compression |
+| --- | --- |
+| PLATFORM | Zstandard |
+| RECOVERY | LZ4 |
 
 Both verified rodin kernel families support Zstandard initramfs decompression.
 
@@ -150,10 +169,10 @@ These prevent Fastbootd from blocking indefinitely when optional services are un
 
 Runtime verification confirmed:
 
-~~text
+```text
 is-userspace: yes
 product: rodin
-~~
+```
 
 under both supported HOS kernel families.
 
@@ -184,25 +203,25 @@ This separation is intentional because the AOSP vendor environment differs from 
 
 The public release entrypoint is:
 
-`./build-release.sh`
+```bash
+./build-release.sh
+```
 
 The flow is:
 
-~~text
-apply canonical external patches
-        |
-verify source and binary inputs
-        |
-compile OrangeFox recovery
-        |
-        +--> unified HOS AVB Enabled
-        |
-        +--> unified HOS AVB Disabled
-        |
-        +--> AOSP AVB Enabled
-        |
-        +--> AOSP AVB Disabled
-~~
+```text
+Apply canonical external patches
+    │
+    ▼
+Verify source and binary inputs
+    │
+    ▼
+Compile OrangeFox recovery
+├── Unified HOS AVB Enabled
+├── Unified HOS AVB Disabled
+├── AOSP AVB Enabled
+└── AOSP AVB Disabled
+```
 
 The default `vendor_boot.img` is restored to the unified HOS AVB Enabled image after all release variants are generated.
 
@@ -224,3 +243,7 @@ The same unified `vendor_boot` successfully provided:
 - Fastbootd
 
 This runtime behavior is the compatibility baseline for the unified HOS design.
+
+---
+
+[Back to documentation](README.md)

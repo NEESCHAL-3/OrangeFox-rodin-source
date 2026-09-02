@@ -1,6 +1,19 @@
-# Legacy Edify installer compatibility
+# Legacy Edify Installer Compatibility
+
+[Repository](../README.md) / [Documentation](README.md)
 
 Rodin includes recovery-side compatibility work for older Edify-based ZIP installers.
+
+<details>
+<summary>On this page</summary>
+
+- [Problem](#problem)
+- [Fallback behavior](#fallback-behavior)
+- [Restored Edify functions](#restored-edify-functions)
+- [Validation](#validation)
+- [Source](#source)
+
+</details>
 
 ## Problem
 
@@ -51,4 +64,8 @@ The primary fallback work is published as:
 
 Additional runtime-verified compatibility work is contained in patch 5 and in the complete recovery patch.
 
-See `PATCHES.md` for exact source bases, target commits and patch hashes.
+See [External Source Patches](PATCHES.md) for exact source bases, target commits and patch hashes.
+
+---
+
+[Back to documentation](README.md)

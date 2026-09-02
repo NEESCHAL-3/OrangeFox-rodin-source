@@ -1,5 +1,32 @@
 # Troubleshooting
 
+[Repository](../README.md) / [Documentation](README.md)
+
+Diagnose build, boot, and recovery issues against the verified Xiaomi `rodin` baseline.
+
+<details>
+<summary>On this page</summary>
+
+- [Do not flash the intermediate vendor_boot](#do-not-flash-the-intermediate-vendor_boot)
+- [Build fails before compilation](#build-fails-before-compilation)
+- [Source patch application fails](#source-patch-application-fails)
+- [Wrong recovery profile](#wrong-recovery-profile)
+- [Android or recovery does not boot after flashing](#android-or-recovery-does-not-boot-after-flashing)
+- [Unified HOS kernel mismatch](#unified-hos-kernel-mismatch)
+- [Fastbootd does not appear](#fastbootd-does-not-appear)
+- [Touch problems](#touch-problems)
+- [Haptics problems](#haptics-problems)
+- [Storage or userdata problems](#storage-or-userdata-problems)
+- [FBE decryption problems](#fbe-decryption-problems)
+- [OTG disappears after installing a ROM](#otg-disappears-after-installing-a-rom)
+- [Format Data after ROM installation](#format-data-after-rom-installation)
+- [AVB Enabled vs Disabled](#avb-enabled-vs-disabled)
+- [Build output size](#build-output-size)
+- [Patch integrity](#patch-integrity)
+- [Recovery logs](#recovery-logs)
+
+</details>
+
 ## Do not flash the intermediate vendor_boot
 
 Rodin recovery lives inside `vendor_boot`.
@@ -14,9 +41,9 @@ Do not flash an intermediate recovery-only `vendor_boot`.
 
 Run the verifier directly:
 
-~~bash
+```bash
 tools/verify-build-inputs.sh <orangefox-root>
-~~
+```
 
 The verifier checks:
 
@@ -34,20 +61,20 @@ Fix the reported mismatch instead of bypassing the verifier.
 
 Use:
 
-~~bash
+```bash
 tools/apply-orangefox-patches.sh
-~~
+```
 
 The helper supports an already-prepared development tree.
 
 Expected behavior on an already-patched source is similar to:
 
-~~text
+```text
 BootControl non-blocking lookup patch is already applied
 fastbootd non-blocking HAL lookup patch is already applied
 OrangeFox build/make patch is already applied
 OrangeFox recovery patch is already applied (verified markers)
-~~
+```
 
 If a patch is neither applicable nor already represented by the verified source state, stop and inspect the source tree instead of forcing the patch.
 
@@ -61,12 +88,15 @@ For supported AOSP-based ROMs use the AOSP image.
 
 The release matrix is:
 
-~~text
-HOS AVB Enabled
-HOS AVB Disabled
-AOSP AVB Enabled
-AOSP AVB Disabled
-~~
+```text
+Release images
+├── HOS / OEM-Port
+│   ├── AVB Enabled
+│   └── AVB Disabled
+└── AOSP
+    ├── AVB Enabled
+    └── AVB Disabled
+```
 
 Do not use the HOS image merely because the physical device is rodin if the installed ROM uses the separate AOSP vendor environment.
 
@@ -87,22 +117,19 @@ Also confirm that only the intended slot was modified.
 
 Useful commands:
 
-~~bash
+```bash
 fastboot getvar current-slot
 fastboot getvar product
-~~
+```
 
 ## Unified HOS kernel mismatch
 
 The verified HOS kernel families are:
 
-CN:
-
-`6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k`
-
-Global/MIXM and India:
-
-`6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k`
+| Firmware family | Verified kernel release |
+| --- | --- |
+| CN | `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k` |
+| Global/MIXM and India | `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k` |
 
 The unified PLATFORM selects modules using the exact running kernel release.
 
@@ -110,33 +137,33 @@ If a substantially different kernel release is used, it may fall outside the ver
 
 Check in recovery:
 
-~~bash
+```bash
 adb shell uname -r
-~~
+```
 
 ## Fastbootd does not appear
 
 From OrangeFox:
 
-~~bash
+```bash
 adb reboot fastboot
-~~
+```
 
 Then verify:
 
-~~bash
+```bash
 fastboot devices
 fastboot getvar is-userspace
 fastboot getvar product
 fastboot getvar current-slot
-~~
+```
 
 Expected:
 
-~~text
+```text
 is-userspace: yes
 product: rodin
-~~
+```
 
 Rodin Fastbootd depends on the recovery USB ConfigFS setup and the non-blocking BootControl / optional-HAL lookup fixes.
 
@@ -146,9 +173,9 @@ Do not reintroduce competing ConfigFS ownership or remove the Fastbootd source p
 
 Check that the rodin-specific touch modules loaded:
 
-~~bash
-adb shell "cat /proc/modules | grep -E "goodix|focal|xiaomi_touch|scp""
-~~
+```bash
+adb shell "cat /proc/modules | grep -E 'goodix|focal|xiaomi_touch|scp'"
+```
 
 The unified HOS PLATFORM makes the OrangeFox device modules available in both supported kernel-release module directories.
 
@@ -158,9 +185,9 @@ If touch fails after changing modules or metadata, verify the exact running kern
 
 Check:
 
-~~bash
+```bash
 adb shell "cat /proc/modules | grep si_haptic"
-~~
+```
 
 If `si_haptic` is not loaded, inspect the recovery module tree and the haptics loader before changing unrelated vibration framework files.
 
@@ -168,9 +195,9 @@ If `si_haptic` is not loaded, inspect the recovery module tree and the haptics l
 
 Confirm the userdata block mapping:
 
-~~bash
+```bash
 adb shell ls -l /dev/block/by-name/userdata
-~~
+```
 
 Also check mounted filesystems and recovery logs.
 
@@ -180,11 +207,11 @@ Do not modify or format `/metadata` automatically while debugging a storage issu
 
 Collect:
 
-~~bash
+```bash
 adb shell getprop
 adb shell mount
 adb shell dmesg
-~~
+```
 
 and the OrangeFox recovery log.
 
@@ -238,13 +265,13 @@ Do not silently replace or edit a pinned patch without also updating its documen
 
 Useful data when reporting a problem:
 
-~~bash
+```bash
 adb shell uname -r
 adb shell cat /proc/modules
 adb shell getprop
 adb shell dmesg
 adb shell ls -l /dev/block/by-name
-~~
+```
 
 Also include:
 
@@ -253,3 +280,7 @@ Also include:
 - current slot
 - installed ROM family
 - exact kernel release
+
+---
+
+[Back to documentation](README.md)

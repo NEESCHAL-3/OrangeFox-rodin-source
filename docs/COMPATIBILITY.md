@@ -1,6 +1,28 @@
 # Compatibility
 
+[Repository](../README.md) / [Documentation](README.md)
+
 This source targets Xiaomi `rodin`.
+
+<details>
+<summary>On this page</summary>
+
+- [Supported devices](#supported-devices)
+- [Release profiles](#release-profiles)
+- [Unified HOS / OEM-Port compatibility](#unified-hos--oem-port-compatibility)
+- [CN firmware](#cn-firmware)
+- [Global / MIXM firmware](#global--mixm-firmware)
+- [India firmware](#india-firmware)
+- [AOSP compatibility](#aosp-compatibility)
+- [AVB Enabled](#avb-enabled)
+- [AVB Disabled](#avb-disabled)
+- [Verified recovery functionality](#verified-recovery-functionality)
+- [Fastbootd](#fastbootd)
+- [Flashing](#flashing)
+- [Recovery image selection](#recovery-image-selection)
+- [Support boundary](#support-boundary)
+
+</details>
 
 ## Supported devices
 
@@ -35,13 +57,10 @@ There are no separate China, Global or India release images.
 
 The unified HOS PLATFORM contains two complete module trees.
 
-CN:
-
-`6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k`
-
-Global/MIXM and India:
-
-`6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k`
+| Firmware family | Verified kernel release |
+| --- | --- |
+| CN | `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k` |
+| Global/MIXM and India | `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k` |
 
 First-stage init automatically selects the module directory matching the running kernel.
 
@@ -141,10 +160,10 @@ Fastbootd has been runtime-tested under both verified HOS kernel families.
 
 Expected userspace Fastboot output includes:
 
-~~text
+```text
 is-userspace: yes
 product: rodin
-~~
+```
 
 The Fastbootd implementation includes the rodin non-blocking BootControl and optional-HAL lookup fixes.
 
@@ -154,10 +173,10 @@ Only flash the final 64 MiB `vendor_boot` image produced by the rodin build flow
 
 Valid partitions are:
 
-~~text
+```text
 vendor_boot_a
 vendor_boot_b
-~~
+```
 
 Do not use `vendor_boot_ab`.
 
@@ -167,17 +186,17 @@ For testing, flash only the intended slot unless modifying both slots is explici
 
 For OEM/HOS environments choose one of:
 
-~~text
+```text
 OrangeFox-R12.0-NEESCHAL-rodin-HOS-AVB-ENABLED.img
 OrangeFox-R12.0-NEESCHAL-rodin-HOS-AVB-DISABLED.img
-~~
+```
 
 For supported AOSP environments choose one of:
 
-~~text
+```text
 OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-ENABLED.img
 OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-DISABLED.img
-~~
+```
 
 There are no region-specific HOS release images anymore.
 
@@ -186,3 +205,7 @@ There are no region-specific HOS release images anymore.
 Compatibility claims in this repository are based on the verified rodin firmware and kernel families described above.
 
 Unrelated vendor environments, different kernel ABIs or substantially modified vendor boot layouts are outside the verified compatibility baseline.
+
+---
+
+[Back to documentation](README.md)

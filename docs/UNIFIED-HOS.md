@@ -1,6 +1,29 @@
-# Unified HOS / OEM-Port vendor_boot
+# Unified HOS / OEM-Port `vendor_boot`
+
+[Repository](../README.md) / [Documentation](README.md)
 
 This document describes why one OrangeFox HOS/OEM-port `vendor_boot` can support the verified Xiaomi `rodin` CN, Global/MIXM and India firmware families.
+
+<details>
+<summary>On this page</summary>
+
+- [Goal](#goal)
+- [Final layout](#final-layout)
+- [Unified PLATFORM](#unified-platform)
+- [CN module tree](#cn-module-tree)
+- [Global / India module tree](#global--india-module-tree)
+- [Runtime selection](#runtime-selection)
+- [Module metadata](#module-metadata)
+- [OrangeFox-specific modules](#orangefox-specific-modules)
+- [Why Zstandard is used](#why-zstandard-is-used)
+- [AVB Enabled](#avb-enabled)
+- [AVB Disabled](#avb-disabled)
+- [AOSP is separate](#aosp-is-separate)
+- [Runtime proof](#runtime-proof)
+- [Release outputs](#release-outputs)
+- [Developer workflow](#developer-workflow)
+
+</details>
 
 ## Goal
 
@@ -14,11 +37,11 @@ There is now one HOS/OEM-port image containing everything required for both veri
 
 The HOS `vendor_boot` uses header version 4 and contains:
 
-~~text
+```text
 vendor_boot
 ├── PLATFORM  [Zstandard]
 └── RECOVERY  [LZ4]
-~~
+```
 
 PLATFORM contains the first-stage Android environment.
 
@@ -36,11 +59,11 @@ SHA-256:
 
 The PLATFORM contains two complete module trees:
 
-~~text
+```text
 /lib/modules/
 ├── 6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k/
 └── 6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k/
-~~
+```
 
 ## CN module tree
 
@@ -87,13 +110,10 @@ When it finds an exact matching directory under `/lib/modules`, it uses that dir
 
 Therefore:
 
-~~text
-running 6.6.77 kernel
-    -> select CN module directory
-
-running 6.6.89 kernel
-    -> select Global/India module directory
-~~
+| Running kernel | Selected module tree |
+| --- | --- |
+| 6.6.77 | CN |
+| 6.6.89 | Global/India |
 
 The same `vendor_boot` automatically adapts to the running verified kernel family.
 
@@ -187,21 +207,24 @@ Verified under both included:
 
 Fastbootd reported:
 
-~~text
+```text
 is-userspace: yes
 product: rodin
-~~
+```
 
 ## Release outputs
 
 The unified design reduces the old region-specific release matrix to four images:
 
-~~text
-HOS AVB Enabled
-HOS AVB Disabled
-AOSP AVB Enabled
-AOSP AVB Disabled
-~~
+```text
+Release images
+├── HOS / OEM-Port
+│   ├── AVB Enabled
+│   └── AVB Disabled
+└── AOSP
+    ├── AVB Enabled
+    └── AVB Disabled
+```
 
 There are no separate CN, Global or India HOS release images.
 
@@ -211,8 +234,12 @@ Developers do not manually merge ramdisks or modules.
 
 From `device/xiaomi/rodin`:
 
-~~bash
+```bash
 ./build-release.sh
-~~
+```
 
 The unified PLATFORM is a pinned build input and the release tooling handles packaging automatically.
+
+---
+
+[Back to documentation](README.md)

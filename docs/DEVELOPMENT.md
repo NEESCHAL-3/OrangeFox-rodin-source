@@ -1,6 +1,27 @@
 # Development Workflow
 
+[Repository](../README.md) / [Documentation](README.md)
+
 This document describes the supported contributor workflow for OrangeFox on Xiaomi `rodin`.
+
+<details>
+<summary>On this page</summary>
+
+- [1. Source layout](#1-source-layout)
+- [2. Canonical external patches](#2-canonical-external-patches)
+- [3. Source verification](#3-source-verification)
+- [4. Unified HOS development model](#4-unified-hos-development-model)
+- [5. Unified PLATFORM maintenance](#5-unified-platform-maintenance)
+- [6. AOSP development model](#6-aosp-development-model)
+- [7. Building](#7-building)
+- [8. Release matrix](#8-release-matrix)
+- [9. Fastbootd development](#9-fastbootd-development)
+- [10. Recovery module development](#10-recovery-module-development)
+- [11. Runtime validation](#11-runtime-validation)
+- [12. ROM-install preservation](#12-rom-install-preservation)
+- [13. Patch maintenance](#13-patch-maintenance)
+
+</details>
 
 ## 1. Source layout
 
@@ -10,15 +31,22 @@ The device tree must live inside the OrangeFox source tree at:
 
 Expected layout:
 
-~~text
+```text
 <orangefox-root>/
-├── bootable/recovery
-├── build/make
-├── hardware/interfaces
-├── system/core
-├── vendor/recovery
-└── device/xiaomi/rodin
-~~
+├── bootable/
+│   └── recovery/
+├── build/
+│   └── make/
+├── device/
+│   └── xiaomi/
+│       └── rodin/
+├── hardware/
+│   └── interfaces/
+├── system/
+│   └── core/
+└── vendor/
+    └── recovery/
+```
 
 The build and verification scripts derive the OrangeFox source root from this location.
 
@@ -30,12 +58,13 @@ Rodin carries required source changes outside the device tree.
 
 Canonical patch files are stored under:
 
-~~text
-patches/bootable-recovery/
-patches/build-make/
-patches/hardware-interfaces/
-patches/system-core/
-~~
+```text
+patches/
+├── bootable-recovery/
+├── build-make/
+├── hardware-interfaces/
+└── system-core/
+```
 
 They cover:
 
@@ -46,9 +75,9 @@ They cover:
 
 Apply them with:
 
-~~bash
+```bash
 tools/apply-orangefox-patches.sh
-~~
+```
 
 The helper is designed to tolerate an already-prepared development tree and must never blindly apply the complete recovery patch twice.
 
@@ -56,9 +85,9 @@ The helper is designed to tolerate an already-prepared development tree and must
 
 Run:
 
-~~bash
+```bash
 tools/verify-build-inputs.sh <orangefox-root>
-~~
+```
 
 The verifier checks:
 
@@ -121,10 +150,11 @@ AOSP remains separate from HOS.
 
 Pinned AOSP inputs are:
 
-~~text
-prebuilt/aosp/vendor_ramdisk00
-prebuilt/aosp/bootconfig
-~~
+```text
+prebuilt/aosp/
+├── bootconfig
+└── vendor_ramdisk00
+```
 
 Changes to unified HOS handling must not silently modify the AOSP build path.
 
@@ -134,23 +164,27 @@ Likewise, AOSP-specific changes should not add CN/HOS module content to the AOSP
 
 For a complete release build, run from `device/xiaomi/rodin`:
 
-~~bash
+```bash
 ./build-release.sh
-~~
+```
 
 This is the preferred public build entrypoint.
 
 It performs:
 
-~~text
-apply patches
--> verify inputs
--> compile OrangeFox
--> HOS AVB Enabled
--> HOS AVB Disabled
--> AOSP AVB Enabled
--> AOSP AVB Disabled
-~~
+```text
+Apply canonical external patches
+    │
+    ▼
+Verify source and binary inputs
+    │
+    ▼
+Compile OrangeFox recovery
+├── Unified HOS AVB Enabled
+├── Unified HOS AVB Disabled
+├── AOSP AVB Enabled
+└── AOSP AVB Disabled
+```
 
 For lower-level development, `build-lowmem.sh vendorbootimage` can still be used when working on OrangeFox itself.
 
@@ -160,12 +194,13 @@ A final release must still be produced through the complete release workflow.
 
 The supported release outputs are exactly:
 
-~~text
-OrangeFox-R12.0-NEESCHAL-rodin-HOS-AVB-ENABLED.img
-OrangeFox-R12.0-NEESCHAL-rodin-HOS-AVB-DISABLED.img
-OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-ENABLED.img
-OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-DISABLED.img
-~~
+```text
+out/target/product/rodin/
+├── OrangeFox-R12.0-NEESCHAL-rodin-HOS-AVB-ENABLED.img
+├── OrangeFox-R12.0-NEESCHAL-rodin-HOS-AVB-DISABLED.img
+├── OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-ENABLED.img
+└── OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-DISABLED.img
+```
 
 Do not reintroduce separate CN, Global or India HOS release files.
 
@@ -180,18 +215,18 @@ Do not replace the proven USB recovery configuration or add competing ConfigFS o
 
 When testing Fastbootd, verify:
 
-~~text
+```bash
 fastboot getvar is-userspace
 fastboot getvar product
 fastboot getvar current-slot
-~~
+```
 
 Expected userspace state:
 
-~~text
+```text
 is-userspace: yes
 product: rodin
-~~
+```
 
 ## 10. Recovery module development
 
@@ -249,3 +284,7 @@ When an external-source change is intentionally updated:
 8. document the new verified baseline.
 
 Avoid accumulating undocumented local edits outside the canonical patch workflow.
+
+---
+
+[Back to documentation](README.md)

@@ -1,6 +1,25 @@
 # Verified Runtime Baseline
 
+[Repository](../README.md) / [Documentation](README.md)
+
 This file records the currently verified OrangeFox baseline for Xiaomi `rodin`.
+
+<details>
+<summary>On this page</summary>
+
+- [Device tree](#device-tree)
+- [Patched external repositories](#patched-external-repositories)
+- [Fastbootd patches](#fastbootd-patches)
+- [Unified HOS PLATFORM](#unified-hos-platform)
+- [Global and India module equivalence](#global-and-india-module-equivalence)
+- [Unified HOS runtime validation](#unified-hos-runtime-validation)
+- [Unified prototype](#unified-prototype)
+- [Verified release build](#verified-release-build)
+- [Verified HOS packaging](#verified-hos-packaging)
+- [Recovery behavior baseline](#recovery-behavior-baseline)
+- [Support boundary](#support-boundary)
+
+</details>
 
 ## Device tree
 
@@ -10,7 +29,9 @@ Canonical device source:
 
 The public release workflow uses:
 
-`./build-release.sh`
+```bash
+./build-release.sh
+```
 
 The release build produces four images:
 
@@ -23,17 +44,11 @@ The release build produces four images:
 
 Verified development revisions:
 
-`bootable/recovery`
-
-`a9729dd387aef007c9ed87ced989bebc5e5441b7`
-
-`hardware/interfaces`
-
-`61f0bcd25bdbf2b6d4d978fdfa348bf01078a8f8`
-
-`system/core`
-
-`d4add349bc23456cd137d73b1acbcd789aaa5ed0`
+| External repository | Verified development revision |
+| --- | --- |
+| `bootable/recovery` | `a9729dd387aef007c9ed87ced989bebc5e5441b7` |
+| `hardware/interfaces` | `61f0bcd25bdbf2b6d4d978fdfa348bf01078a8f8` |
+| `system/core` | `d4add349bc23456cd137d73b1acbcd789aaa5ed0` |
 
 The remaining untouched source projects are verified against the pinned OrangeFox source manifest.
 
@@ -49,9 +64,10 @@ Fastbootd optional-HAL non-blocking patch SHA-256:
 
 Runtime Fastbootd verification produced:
 
-`is-userspace: yes`
-
-`product: rodin`
+```text
+is-userspace: yes
+product: rodin
+```
 
 on both verified HOS kernel families.
 
@@ -71,13 +87,10 @@ Compression:
 
 The PLATFORM contains independent module trees for:
 
-CN:
-
-`6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k`
-
-Global/MIXM and India:
-
-`6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k`
+| Firmware family | Verified kernel release |
+| --- | --- |
+| CN | `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k` |
+| Global/MIXM and India | `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k` |
 
 The stock CN and 6.6.89 module sets each contain 244 stock modules before the OrangeFox device modules are added.
 
@@ -137,21 +150,12 @@ It was runtime-tested under both the CN 6.6.77 and Global 6.6.89 kernels.
 
 A complete `./build-release.sh` run completed successfully and produced all four release images.
 
-HOS AVB Enabled:
-
-`51c1246aa12a089cc23db34933a97084994a13f0dc4e99fe37ee68e0fa3fc18c`
-
-HOS AVB Disabled:
-
-`26056996dd3f21aa21e874fcbfa8ee4a8f990f0aa1e3db25b9e21a934b36d055`
-
-AOSP AVB Enabled:
-
-`e7e1de7996b681638b3242fc2a2f9511b98e1a86d242dd19fea816d16aaeb692`
-
-AOSP AVB Disabled:
-
-`79ef6df3667c0ab34c3bc91b82671ed9ccd92baa4f19110870d4c0ab577ce861`
+| Release image | SHA-256 |
+| --- | --- |
+| HOS AVB Enabled | `51c1246aa12a089cc23db34933a97084994a13f0dc4e99fe37ee68e0fa3fc18c` |
+| HOS AVB Disabled | `26056996dd3f21aa21e874fcbfa8ee4a8f990f0aa1e3db25b9e21a934b36d055` |
+| AOSP AVB Enabled | `e7e1de7996b681638b3242fc2a2f9511b98e1a86d242dd19fea816d16aaeb692` |
+| AOSP AVB Disabled | `79ef6df3667c0ab34c3bc91b82671ed9ccd92baa4f19110870d4c0ab577ce861` |
 
 The default `vendor_boot.img` output points to the unified HOS AVB Enabled image.
 
@@ -159,17 +163,11 @@ The default `vendor_boot.img` output points to the unified HOS AVB Enabled image
 
 The successful unified HOS AVB Disabled build reported:
 
-PLATFORM:
-
-`22564936 bytes, Zstandard`
-
-RECOVERY:
-
-`38600750 bytes, LZ4`
-
-Combined vendor ramdisk:
-
-`61165686 bytes`
+| Component | Size (bytes) | Compression |
+| --- | ---: | --- |
+| PLATFORM | 22564936 | Zstandard |
+| RECOVERY | 38600750 | LZ4 |
+| Combined vendor ramdisk | 61165686 | Zstandard PLATFORM + LZ4 RECOVERY |
 
 This remains below the rodin build safety limit of 62000000 bytes.
 
@@ -196,3 +194,7 @@ The verified HOS compatibility baseline covers the supported rodin CN 6.6.77 and
 AOSP remains a separate profile with its dedicated PLATFORM and bootconfig.
 
 Different kernel ABIs or unrelated vendor environments require separate validation before being declared supported.
+
+---
+
+[Back to documentation](README.md)

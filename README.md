@@ -56,9 +56,9 @@ Clone this repository into an OrangeFox 14.1 source tree as:
 
 Then build from the device-tree directory:
 
-~~bash
+```bash
 ./build-release.sh
-~~
+```
 
 The release script:
 
@@ -69,12 +69,13 @@ The release script:
 
 Outputs are written to `out/target/product/rodin/`:
 
-~~text
-OrangeFox-R12.0-NEESCHAL-rodin-HOS-AVB-ENABLED.img
-OrangeFox-R12.0-NEESCHAL-rodin-HOS-AVB-DISABLED.img
-OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-ENABLED.img
-OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-DISABLED.img
-~~
+```text
+out/target/product/rodin/
+├── OrangeFox-R12.0-NEESCHAL-rodin-HOS-AVB-ENABLED.img
+├── OrangeFox-R12.0-NEESCHAL-rodin-HOS-AVB-DISABLED.img
+├── OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-ENABLED.img
+└── OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-DISABLED.img
+```
 
 `vendor_boot.img` defaults to the unified HOS AVB-enabled image.
 
@@ -92,10 +93,10 @@ The HOS AVB Disabled image is generated from the same unified PLATFORM by removi
 
 Flash the final 64 MiB image to the intended slot, for example:
 
-~~bash
+```bash
 fastboot flash vendor_boot_a <image>.img
 fastboot reboot recovery
-~~
+```
 
 Valid partition names are:
 

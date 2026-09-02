@@ -1,4 +1,20 @@
-# USB OTG handling on rodin
+# USB OTG Handling on Rodin
+
+[Repository](../README.md) / [Documentation](README.md)
+
+This guide describes the verified USB OTG fixes used during image packaging and automatic recovery preservation.
+
+<details>
+<summary>On this page</summary>
+
+- [Problem](#problem)
+- [DTB property](#dtb-property)
+- [Build-time fix](#build-time-fix)
+- [Runtime auto-preservation fix](#runtime-auto-preservation-fix)
+- [Verified workflow](#verified-workflow)
+- [Source location](#source-location)
+
+</details>
 
 ## Problem
 
@@ -83,3 +99,7 @@ The corresponding numbered patch is:
 `patches/bootable-recovery/0006-recovery-patch-rodin-OTG-DTB-during-auto-reflash.patch`
 
 The exact complete recovery patch and its SHA-256 are documented in [`PATCHES.md`](PATCHES.md).
+
+---
+
+[Back to documentation](README.md)

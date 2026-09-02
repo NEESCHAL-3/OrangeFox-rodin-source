@@ -1,12 +1,30 @@
 # External Source Patches
 
+[Repository](../README.md) / [Documentation](README.md)
+
 Rodin requires a small set of canonical changes outside `device/xiaomi/rodin`.
 
 The public build workflow applies these through:
 
-`tools/apply-orangefox-patches.sh`
+```bash
+tools/apply-orangefox-patches.sh
+```
 
 All patch files are SHA-256 verified by `tools/verify-build-inputs.sh`.
+
+<details>
+<summary>On this page</summary>
+
+- [bootable/recovery](#bootablerecovery)
+- [build/make](#buildmake)
+- [hardware/interfaces](#hardwareinterfaces)
+- [system/core](#systemcore)
+- [Fastbootd runtime validation](#fastbootd-runtime-validation)
+- [Patch application](#patch-application)
+- [Reproducibility](#reproducibility)
+- [Hash manifest](#hash-manifest)
+
+</details>
 
 ## bootable/recovery
 
@@ -97,10 +115,10 @@ The hardware/interfaces and system/core patches are part of the verified rodin F
 
 Runtime testing under both supported HOS kernel families produced:
 
-~~text
+```text
 is-userspace: yes
 product: rodin
-~~
+```
 
 The working recovery USB ConfigFS configuration is retained separately in the rodin recovery/device source and should not be replaced by competing USB gadget ownership.
 
@@ -108,9 +126,9 @@ The working recovery USB ConfigFS configuration is retained separately in the ro
 
 Automated source preparation uses:
 
-~~bash
+```bash
 tools/apply-orangefox-patches.sh
-~~
+```
 
 For each normal patch, the helper distinguishes between:
 
@@ -147,9 +165,13 @@ All published patch hashes are recorded in:
 
 Current machine-friendly patch hashes:
 
-~~text
+```text
 2139f65744aa6773132b149c80adc5ff6596a67269029cd57935f8b3c076c4e0  patches/bootable-recovery/rodin-complete.patch
 8d7f88b979fd51280d52774ccc51205a4316f6160053a17210c246ca4944b18b  patches/build-make/rodin-complete.patch
 e10f789766f359d5d4b91d2fa7ee8418d5c39694f7c914d5cc02c6aa533755b8  patches/hardware-interfaces/rodin-fastbootd-bootcontrol-nonblocking.patch
 740b10ad8cae477e8d387406b61594db869f83ab3fe0a15af46ec4ca6fc655e6  patches/system-core/rodin-fastbootd-optional-hals-nonblocking.patch
-~~
+```
+
+---
+
+[Back to documentation](README.md)
