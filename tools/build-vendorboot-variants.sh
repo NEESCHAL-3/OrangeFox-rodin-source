@@ -2,7 +2,7 @@
 set -euo pipefail
 
 DEVICE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
-TOP_DIR="$(cd -- "${DEVICE_DIR}/../../.." && pwd -P)"
+TOP_DIR="${RODIN_TOP_DIR:-$(cd -- "${DEVICE_DIR}/../fox_14.1" && pwd -P)}"
 PRODUCT_OUT="${1:-${OUT_DIR:-${TOP_DIR}/out}/target/product/rodin}"
 
 HOS_BUILDER="${DEVICE_DIR}/tools/build-system-compatible-vendor-boot.sh"

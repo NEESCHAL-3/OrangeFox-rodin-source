@@ -2,7 +2,7 @@
 set -euo pipefail
 
 DEVICE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
-TOP_DIR="${1:-$(cd -- "${DEVICE_DIR}/../../.." && pwd -P)}"
+TOP_DIR="${1:-${RODIN_TOP_DIR:-$(cd -- "${DEVICE_DIR}/../fox_14.1" && pwd -P)}}"
 RECOVERY_DIR="${TOP_DIR}/bootable/recovery"
 BUILD_DIR="${TOP_DIR}/build/make"
 HARDWARE_INTERFACES_DIR="${TOP_DIR}/hardware/interfaces"

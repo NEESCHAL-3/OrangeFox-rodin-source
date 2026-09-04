@@ -5,8 +5,8 @@ DEVICE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 
 if [ -n "${ORANGEFOX_TOP:-}" ]; then
     TOP_DIR="${ORANGEFOX_TOP}"
-elif [ -f "${DEVICE_DIR}/../../../build/envsetup.sh" ]; then
-    TOP_DIR="$(cd -- "${DEVICE_DIR}/../../.." && pwd -P)"
+elif [ -f "${DEVICE_DIR}/../fox_14.1/build/envsetup.sh" ]; then
+    TOP_DIR="${RODIN_TOP_DIR:-$(cd -- "${DEVICE_DIR}/../fox_14.1" && pwd -P)}"
 else
     TOP_DIR="${HOME}/fox_14.1"
 fi
