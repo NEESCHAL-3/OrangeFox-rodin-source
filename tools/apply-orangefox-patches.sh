@@ -7,11 +7,17 @@ RECOVERY_DIR="${TOP_DIR}/bootable/recovery"
 BUILD_DIR="${TOP_DIR}/build/make"
 HARDWARE_INTERFACES_DIR="${TOP_DIR}/hardware/interfaces"
 SYSTEM_CORE_DIR="${TOP_DIR}/system/core"
+UPDATE_ENGINE_DIR="${TOP_DIR}/system/update_engine"
+VOLD_DIR="${TOP_DIR}/system/vold"
+VENDOR_TWRP_DIR="${TOP_DIR}/vendor/twrp"
 
 RECOVERY_PATCH="${DEVICE_DIR}/patches/bootable-recovery/rodin-complete.patch"
 BUILD_PATCH="${DEVICE_DIR}/patches/build-make/rodin-complete.patch"
 BOOTCONTROL_PATCH="${DEVICE_DIR}/patches/hardware-interfaces/rodin-fastbootd-bootcontrol-nonblocking.patch"
 FASTBOOTD_PATCH="${DEVICE_DIR}/patches/system-core/rodin-fastbootd-optional-hals-nonblocking.patch"
+UPDATE_ENGINE_PATCH="${DEVICE_DIR}/patches/system-update-engine/0001-update-engine-fix-rodin-ab-recovery-installation.patch"
+VOLD_PATCH="${DEVICE_DIR}/patches/system-vold/0001-vold-restore-orangefox-decryption-support.patch"
+VENDOR_TWRP_PATCH="${DEVICE_DIR}/patches/vendor-twrp/0001-twrp-fix-rodin-orangefox-build-configuration.patch"
 
 apply_patch_once() {
     local repository="$1" patch_file="$2" label="$3"
@@ -40,16 +46,10 @@ apply_patch_once "${HARDWARE_INTERFACES_DIR}" "${BOOTCONTROL_PATCH}" "BootContro
 apply_patch_once "${SYSTEM_CORE_DIR}" "${FASTBOOTD_PATCH}" "fastbootd non-blocking HAL lookup"
 
 apply_patch_once "${BUILD_DIR}" "${BUILD_PATCH}" "OrangeFox build/make"
-if grep -RqsF "OF_SKIP_POST_DECRYPT_THEME_RELOAD" "${RECOVERY_DIR}" &&
-        grep -RqsF "OF_LOAD_DEFAULT_LANGUAGE_BEFORE_DECRYPT" "${RECOVERY_DIR}" &&
-        grep -RqsF "fallback_face" "${RECOVERY_DIR}" &&
-        grep -RqsF "processKeyChord" "${RECOVERY_DIR}" &&
-        grep -RqsF "Auto-DFE: unsupported PLATFORM compression." "${RECOVERY_DIR}" &&
-        grep -RqsF "ZSTD_getFrameContentSize" "${RECOVERY_DIR}"; then
-    echo "OrangeFox recovery patch is already applied (verified markers)"
-else
-    apply_patch_once "${RECOVERY_DIR}" "${RECOVERY_PATCH}" "OrangeFox recovery"
-fi
+apply_patch_once "${RECOVERY_DIR}" "${RECOVERY_PATCH}" "OrangeFox recovery"
+apply_patch_once "${UPDATE_ENGINE_DIR}" "${UPDATE_ENGINE_PATCH}" "update_engine A/B recovery support"
+apply_patch_once "${VOLD_DIR}" "${VOLD_PATCH}" "OrangeFox vold decryption support"
+apply_patch_once "${VENDOR_TWRP_DIR}" "${VENDOR_TWRP_PATCH}" "OrangeFox vendor/twrp configuration"
 
 ENGLISH_LANGUAGE="${RECOVERY_DIR}/gui/theme/common/languages/en.xml"
 

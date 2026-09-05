@@ -176,3 +176,100 @@ OrangeFox includes an optional Auto-DFE backend for disabling forced encryption 
 - Auto-DFE retains its backup, rollback and safe-failure behavior.
 
 The unified HOS Zstd PLATFORM path has been verified with the Auto-DFE dry-run mechanism before enabling normal post-ROM operation.
+
+<!-- RODIN-CURRENT-SOURCE-START -->
+
+## Current source and build workflow
+
+This repository contains the canonical OrangeFox source configuration for Xiaomi `rodin`.
+
+### Build profiles
+
+Four `vendor_boot` variants are generated:
+
+| Profile | PLATFORM | AVB |
+| --- | --- | --- |
+| HOS / OEM-Port | Hybrid China + Global | Enabled |
+| HOS / OEM-Port | Hybrid China + Global | Disabled |
+| AOSP | Global-only | Enabled |
+| AOSP | Global-only | Disabled |
+
+The HOS/OEM and AOSP PLATFORM layouts are intentionally different and must not be merged.
+
+### Canonical source patches
+
+The current build uses:
+
+- `patches/bootable-recovery/rodin-complete.patch`
+- `patches/build-make/rodin-complete.patch`
+- `patches/system-update-engine/0001-update-engine-fix-rodin-ab-recovery-installation.patch`
+- `patches/system-vold/0001-vold-restore-orangefox-decryption-support.patch`
+- `patches/vendor-twrp/0001-twrp-fix-rodin-orangefox-build-configuration.patch`
+
+Apply the complete patch stack with:
+
+    ./tools/apply-orangefox-patches.sh
+
+### Verify source and build inputs
+
+Run:
+
+    ./tools/verify-build-inputs.sh
+
+The verifier checks the pinned OrangeFox source state, canonical patch hashes,
+device blobs, kernel, DTB/DTBO, HOS/AOSP PLATFORM inputs, and other required
+build inputs.
+
+### Build
+
+Place this repository at:
+
+    device/xiaomi/rodin
+
+inside the OrangeFox 14.1 source tree.
+
+From `device/xiaomi/rodin`, run:
+
+    ./build-release.sh
+
+This performs source/input verification, builds OrangeFox, and generates all
+four HOS/AOSP × AVB Enabled/Disabled `vendor_boot` images.
+
+For a constrained builder:
+
+    ./build-lowmem.sh vendorbootimage
+
+Final images are generated under:
+
+    out/target/product/rodin/
+
+### Included rodin recovery work
+
+The current canonical source includes the rodin implementations and fixes for:
+
+- A/B target-slot handling
+- Auto Metadata
+- Auto-Reflash
+- target ROM PLATFORM preservation
+- stock-recovery userspace sanitization
+- vendor_boot size optimization and safety checks
+- vendor_boot AVB descriptor refresh
+- Auto-DFE / Disable Forced Encryption
+- persistent DFE DTB/fstab carriers
+- LZ4, Zstd, and nested PLATFORM handling
+- Virtual A/B OTA workspace preparation
+- `/metadata/ota/snapshots`
+- `/metadata/gsi/ota`
+- `/data/gsi/ota`
+- update_engine recovery flashing
+- recovery decryption
+- EXT4/F2FS handling
+- fastbootd
+- USB/ADB/MTP
+- legacy ARM32 Edify compatibility
+- separate HOS/OEM-Port and AOSP recovery profiles
+
+The maintainer theme asset is stored under `assets/theme/` and can be synced
+with `tools/sync-neeschal-theme.sh`.
+
+<!-- RODIN-CURRENT-SOURCE-END -->

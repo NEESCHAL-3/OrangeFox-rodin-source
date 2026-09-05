@@ -59,7 +59,7 @@ c0bc22a0c7158cb92f9720f7d74f7e38861d98e7dac4c726e70da302f2a195c8  device/xiaomi/
 7a08e217122beb7c349b49df0985ecdbe98d1cada7f766c5fdb9961fee803ac3  device/xiaomi/rodin/recovery/root/init.recovery.keymint.rc
 0214fc6029af72c2c38e22cfbe5e64422d23096c317758ccf531cea4235fd1b5  device/xiaomi/rodin/recovery/root/init.recovery.mt6899.rc
 e9dde5655db30dcce1a8abf7a23c7db907790d791a625559a14257aad3323846  device/xiaomi/rodin/recovery/root/init.recovery.project.rc
-8459dfda7747859559db232dd2782b6d7164b086811a433bbdfb29e13100d74a  device/xiaomi/rodin/recovery/root/init.recovery.usb.rc
+376964ac5ab7863d28d1c9c392e7440abfa9aa372b16cfef275a6a19925b0629  device/xiaomi/rodin/recovery/root/init.recovery.usb.rc
 216fcf14fdb61c43faa8ecedcd4b42cf96d8dc8fb2bb4c63f1db3af9a1516736  device/xiaomi/rodin/recovery/root/lib/modules/8250_mtk.ko
 5f1a7246631f622e761c37a8d428e4a68e1ee8573c2b08437a586a1a7590d313  device/xiaomi/rodin/recovery/root/lib/modules/adapter_class.ko
 3e93b446b7268740509d96d52dc5d17c12ccbf416c078d11d06ab2d7a3e1727f  device/xiaomi/rodin/recovery/root/lib/modules/adsp.ko

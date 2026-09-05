@@ -72,18 +72,42 @@ check_file "${DEVICE_DIR}/patches/hardware-interfaces/rodin-fastbootd-bootcontro
 check_file "${DEVICE_DIR}/patches/system-core/rodin-fastbootd-optional-hals-nonblocking.patch"
 check_file "${DEVICE_DIR}/manifests/device-blobs.sha256"
 check_file "${DEVICE_DIR}/manifests/orangefox-fox_14.1-pinned.xml"
-check_sha256 "${DEVICE_DIR}/patches/build-make/rodin-complete.patch" 8d7f88b979fd51280d52774ccc51205a4316f6160053a17210c246ca4944b18b
-check_sha256 "${DEVICE_DIR}/patches/bootable-recovery/rodin-complete.patch" a1842a5b4c3df7aae21a079bdbba8bc2fe1ceb7fbf6beafec836bb78f158b362
+check_sha256 "${DEVICE_DIR}/patches/build-make/rodin-complete.patch" 91f01d03733c66f54aa57be01eee4089efd37ec9c455618d1ef41e457ddbee36
+check_sha256 "${DEVICE_DIR}/patches/bootable-recovery/rodin-complete.patch" 79ac7f1f769788b048ce5648a9bc94b8870cc1aa18da2436d546db2cdd433da5
 check_sha256 "${DEVICE_DIR}/patches/hardware-interfaces/rodin-fastbootd-bootcontrol-nonblocking.patch" e10f789766f359d5d4b91d2fa7ee8418d5c39694f7c914d5cc02c6aa533755b8
 check_sha256 "${DEVICE_DIR}/patches/system-core/rodin-fastbootd-optional-hals-nonblocking.patch" 740b10ad8cae477e8d387406b61594db869f83ab3fe0a15af46ec4ca6fc655e6
-check_sha256 "${DEVICE_DIR}/manifests/device-blobs.sha256" ff7660194653363aac6d72f04102e439fe451832114c595c62bfde840cda8740
+check_sha256 "${DEVICE_DIR}/manifests/device-blobs.sha256" 31a8dcf9d81db9262fc3d8d72bb7561391c1ad33623bfd0a6af4165d3ea7f532
 
 if [[ "${RODIN_ALLOW_UNPINNED_SOURCE:-0}" != "1" ]]; then
     filtered_manifest="$(mktemp "${TMPDIR:-/tmp}/rodin-pinned-manifest.XXXXXX.xml")"
 
-    grep -vE "path=\\\"(bootable/recovery|hardware/interfaces|system/core)\\\"" \
+    python3 - \
         "${DEVICE_DIR}/manifests/orangefox-fox_14.1-pinned.xml" \
-        > "${filtered_manifest}"
+        "${filtered_manifest}" <<'PYXML'
+import sys
+import xml.etree.ElementTree as ET
+
+src, dst = sys.argv[1], sys.argv[2]
+
+excluded = {
+    "bootable/recovery",
+    "build/make",
+    "hardware/interfaces",
+    "system/core",
+    "system/update_engine",
+    "system/vold",
+    "vendor/twrp",
+}
+
+tree = ET.parse(src)
+root = tree.getroot()
+
+for project in list(root.findall("project")):
+    if project.get("path") in excluded:
+        root.remove(project)
+
+tree.write(dst, encoding="unicode")
+PYXML
 
     if ! python3 "${DEVICE_DIR}/tools/verify-source-manifest.py" \
             "${TOP_DIR}" "${filtered_manifest}"; then
@@ -93,7 +117,7 @@ if [[ "${RODIN_ALLOW_UNPINNED_SOURCE:-0}" != "1" ]]; then
     rm -f "${filtered_manifest}"
 
     check_revision "${TOP_DIR}/bootable/recovery" \
-        eaa1bf3d2c71b4c8c2ecccdb24f1170b0fe4d8e7 \
+        73c82389541f3f79e9562ed0a278f604bedff920 \
         "patched bootable/recovery"
 
     check_revision "${TOP_DIR}/hardware/interfaces" \
@@ -103,6 +127,22 @@ if [[ "${RODIN_ALLOW_UNPINNED_SOURCE:-0}" != "1" ]]; then
     check_revision "${TOP_DIR}/system/core" \
         d4add349bc23456cd137d73b1acbcd789aaa5ed0 \
         "patched system/core"
+
+    check_revision "${TOP_DIR}/build/make" \
+        927c3001c92c44ffd3f2b9c76ea140f23226d931 \
+        "patched build/make"
+
+    check_revision "${TOP_DIR}/system/update_engine" \
+        41d967c9c323f74f7c803189e494da4c6b379217 \
+        "patched system/update_engine"
+
+    check_revision "${TOP_DIR}/system/vold" \
+        e4a15a6f99e6c5c1fb2945e7be34b39aab5e7c40 \
+        "patched system/vold"
+
+    check_revision "${TOP_DIR}/vendor/twrp" \
+        d7f3fe68cbb2997f888e6e807d44be1d50bcd42e \
+        "patched vendor/twrp"
 
     check_revision "${TOP_DIR}/vendor/recovery" \
         af3d99b83adedf88fa9992d9320c5ce9811c6b08 \
@@ -244,22 +284,46 @@ if [[ -d "${TOP_DIR}/bootable/recovery" ]]; then
     done
 
     customization="${TOP_DIR}/bootable/recovery/gui/theme/portrait_hdpi/pages/customization.xml"
-    theme_fonts="${TOP_DIR}/bootable/recovery/gui/theme/portrait_hdpi/themes/font.xml"
+
     check_file "${customization}"
-    check_file "${theme_fonts}"
-    if [[ -f "${customization}" ]] && grep -Eq \
-            '<listitem name="(Roboto|Roboto Slab|Google Sans|Euclid Flex|Fira Code|Exo 2|Inter Display)"' \
-            "${customization}"; then
-        fail "customization still exposes fonts removed from the recovery image"
+
+    #
+    # Rodin intentionally uses the stock OrangeFox theme/font setup.
+    # Compare against origin/fox_14.1 without assuming where the font
+    # variables live in the theme tree.
+    #
+    stock_customization="$(mktemp "${TMPDIR:-/tmp}/rodin-stock-customization.XXXXXX")"
+
+    if ! git -C "${TOP_DIR}/bootable/recovery" \
+            show origin/fox_14.1:gui/theme/portrait_hdpi/pages/customization.xml \
+            > "${stock_customization}"; then
+        fail "unable to read stock OrangeFox customization.xml"
     fi
-    if [[ -f "${theme_fonts}" ]] && ! grep -q \
-            '<variable name="theme_font" value="MiSans"/>' "${theme_fonts}"; then
-        fail "OrangeFox primary theme font is not MiSans"
+
+    if ! cmp -s "${customization}" "${stock_customization}"; then
+        fail "OrangeFox customization.xml differs from the intended stock theme"
     fi
-    if [[ -f "${theme_fonts}" ]] && ! grep -q \
-            '<variable name="theme_sec_font" value="MiSans"/>' "${theme_fonts}"; then
-        fail "OrangeFox secondary theme font is not MiSans"
+
+    current_font_defs="$(
+        grep -RhsE \
+            '<variable name="theme_(sec_)?font"' \
+            "${TOP_DIR}/bootable/recovery/gui/theme" 2>/dev/null \
+        | sort -u
+    )"
+
+    stock_font_defs="$(
+        git -C "${TOP_DIR}/bootable/recovery" \
+            grep -h -E \
+            '<variable name="theme_(sec_)?font"' \
+            origin/fox_14.1 -- gui/theme 2>/dev/null \
+        | sort -u
+    )"
+
+    if [[ "${current_font_defs}" != "${stock_font_defs}" ]]; then
+        fail "OrangeFox theme font definitions differ from stock fox_14.1"
     fi
+
+    rm -f "${stock_customization}"
 fi
 
 if ! grep -q '\[ -n "$input" \]' \

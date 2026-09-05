@@ -23,14 +23,17 @@ if [ "${TERM_PROGRAM:-}" = "vscode" ]; then
 fi
 
 export OF_LOW_MEMORY_BUILD="${OF_LOW_MEMORY_BUILD:-1}"
-export OF_BUILD_JOBS="${OF_BUILD_JOBS:-1}"
+export OF_BUILD_JOBS="${OF_BUILD_JOBS:-4}"
 export ALLOW_MISSING_DEPENDENCIES="${ALLOW_MISSING_DEPENDENCIES:-true}"
 export FOX_BUILD_DEVICE="${FOX_BUILD_DEVICE:-rodin}"
 export FOX_AB_DEVICE="${FOX_AB_DEVICE:-1}"
 export FOX_VIRTUAL_AB_DEVICE="${FOX_VIRTUAL_AB_DEVICE:-1}"
 export OF_FORCE_PREBUILT_KERNEL="${OF_FORCE_PREBUILT_KERNEL:-1}"
 export NINJA_ARGS="${NINJA_ARGS:--j${OF_BUILD_JOBS} -l${OF_BUILD_JOBS}}"
-export SOONG_UI_NINJA_ARGS="${SOONG_UI_NINJA_ARGS:--j${OF_BUILD_JOBS} -l${OF_BUILD_JOBS}}"
+# mka and NINJA_ARGS already enforce the requested parallelism.
+# Do not export SOONG_UI_NINJA_ARGS; Soong warns when this variable
+# is used and it is unnecessary for this build wrapper.
+unset SOONG_UI_NINJA_ARGS
 export NINJA_HIGHMEM_NUM_JOBS="${NINJA_HIGHMEM_NUM_JOBS:-1}"
 export GOMAXPROCS="${GOMAXPROCS:-1}"
 export GOGC="${GOGC:-20}"

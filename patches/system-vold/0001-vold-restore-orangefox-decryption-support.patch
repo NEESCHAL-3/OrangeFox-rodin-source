@@ -1,0 +1,255 @@
+diff --git a/Android.bp b/Android.bp
+index fa26d47..7f70751 100644
+--- a/Android.bp
++++ b/Android.bp
+@@ -183,6 +183,7 @@ cc_library_static {
+         "android.hardware.keymaster@4.1",
+         "android.hardware.security.keymint-V3-ndk",
+         "android.hardware.weaver@1.0",
++        "android.hardware.weaver-V2-ndk",
+         "android.security.apc-ndk",
+         "android.system.keystore2-V4-ndk",
+         "android.security.authorization-ndk",
+diff --git a/Decrypt.cpp b/Decrypt.cpp
+index 81799dd..39657ca 100755
+--- a/Decrypt.cpp
++++ b/Decrypt.cpp
+@@ -28,7 +28,6 @@
+ #include <sys/types.h>
+ 
+ #include <keyutils.h>
+-#include "Weaver1.h"
+ #include "cutils/properties.h"
+ 
+ #include <openssl/sha.h>
+@@ -85,6 +84,7 @@ extern "C" {
+ #include "HashPassword.h"
+ #include "KeystoreInfo.hpp"
+ #include "KeyStorage.h"
++#include "Weaver1.h"
+ #include "android/os/IVold.h"
+ 
+ namespace apc = ::aidl::android::security::apc;
+@@ -401,21 +401,43 @@ struct weaver_data_struct {
+  * https://android.googlesource.com/platform/frameworks/base/+/android-8.0.0_r23/services/core/java/com/android/server/locksettings/SyntheticPasswordManager.java#768 */
+ bool Get_Weaver_Data(const std::string& spblob_path, const std::string& handle_str, weaver_data_struct *wd) {
+ 	printf("Get_Weaver_Data\n");
+-	std::string weaver_file = spblob_path + handle_str + ".weaver";
++	bool found_file = false;
+ 	std::string weaver_data;
+-	if (!android::base::ReadFileToString(weaver_file, &weaver_data)) {
+-		printf("Failed to read '%s'\n", weaver_file.c_str());
+-		return false;
++	std::string file = spblob_path + handle_str + ".weaver";
++	if (android::vold::pathExists(file)) {
++		if (!android::base::ReadFileToString(file, &weaver_data)) {
++			printf("Failed to read '%s'\n", file.c_str());
++		} else
++			found_file = true;
++	} else {
++		printf("trying to read %s_file data with leading 0\n", file.c_str());
++		std::vector<std::string> file_paths = {
++			spblob_path + "0" + handle_str + ".weaver",
++			spblob_path + "00" + handle_str + ".weaver"
++		};
++		for (auto& file : file_paths) {
++			if (!android::base::ReadFileToString(file, &weaver_data)) {
++				printf("Failed to read '%s'\n", file.c_str());
++			} else {
++				found_file = true;
++				break;
++			}
++		}
+ 	}
+-	// output_hex(weaver_data.data(), weaver_data.size());printf("\n");
+-	const unsigned char* byteptr = (const unsigned char*)weaver_data.data();
+-	wd->version = *byteptr;
+-	// printf("weaver version %i\n", wd->version);
+-	const int* intptr = (const int*)weaver_data.data() + sizeof(unsigned char);
+-	wd->slot = *intptr;
+-	//endianswap(&wd->slot); not needed
+-	// printf("weaver slot %i\n", wd->slot);
+-	return true;
++	if (found_file == false) {
++		printf("Get_Weaver_Data: No weaver file found for %s\n", handle_str.c_str());
++		return found_file;
++	} else {
++		// output_hex(weaver_data.data(), weaver_data.size());printf("\n");
++		const unsigned char* byteptr = (const unsigned char*)weaver_data.data();
++		wd->version = *byteptr;
++		// printf("weaver version %i\n", wd->version);
++		const int* intptr = (const int*)weaver_data.data() + sizeof(unsigned char);
++		wd->slot = *intptr;
++		//endianswap(&wd->slot); not needed
++		// printf("weaver slot %i\n", wd->slot);
++	}
++	return found_file;
+ }
+ 
+ namespace android {
+@@ -648,10 +670,18 @@ userid_t fakeUid(const userid_t uid) {
+ 
+ bool Is_Weaver(const std::string& spblob_path, const std::string& handle_str) {
+ 	printf("Is_Weaver\n");
+-	std::string weaver_file = spblob_path + handle_str + ".weaver";
+ 	struct stat st;
+-	if (stat(weaver_file.c_str(), &st) == 0)
+-		return true;
++	std::vector<std::string> weaver_file_paths = {
++		spblob_path + handle_str + ".weaver",
++		spblob_path + "0" + handle_str + ".weaver",
++		spblob_path + "00" + handle_str + ".weaver"
++	};
++    for (auto& weaver_file : weaver_file_paths) {
++		if (stat(weaver_file.c_str(), &st) == 0) {
++			return true;
++			break;
++		}
++	}
+ 	return false;
+ }
+ 
+diff --git a/KeystoreInfo.cpp b/KeystoreInfo.cpp
+index af60f19..a74a713 100755
+--- a/KeystoreInfo.cpp
++++ b/KeystoreInfo.cpp
+@@ -57,8 +57,10 @@ std::string KeystoreInfo::getHandle(const userid_t user_id) {
+ 	}
+ 	std::string sql = "SELECT * FROM locksettings WHERE name = 'sp-handle' AND user = " + std::to_string(user_id);
+ 	rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, NULL);
+-	if (rc != SQLITE_OK)
++	if (rc != SQLITE_OK) {
++		sqlite3_close(db);
+ 		return "";
++	}
+ 	int64_t value = 0;
+ 	while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+ 		value = sqlite3_column_int64(stmt, 3);
+diff --git a/Weaver1.cpp b/Weaver1.cpp
+index ea357ed..edcb887 100644
+--- a/Weaver1.cpp
++++ b/Weaver1.cpp
+@@ -28,7 +28,10 @@
+ //#include <keystore/authorization_set.h>
+ //#include <keystore/keystore_hidl_support.h>
+ 
++#include <android/binder_manager.h>
++
+ #include <android/hardware/weaver/1.0/IWeaver.h>
++#include <aidl/android/hardware/weaver/IWeaver.h>
+ 
+ #include <iostream>
+ #define ERROR 1
+@@ -48,7 +51,12 @@ namespace android {
+ namespace vold {
+ 
+ Weaver::Weaver() {
+-	mDevice = ::android::hardware::weaver::V1_0::IWeaver::getService();
++    const std::string instance = std::string(::aidl::android::hardware::weaver::IWeaver::descriptor) + "/default";
++    AIBinder* binder = AServiceManager_waitForService(instance.c_str());
++    mAidlDevice = ::aidl::android::hardware::weaver::IWeaver::fromBinder(ndk::SpAIBinder(binder));
++	if (mAidlDevice == nullptr) {
++		mDevice = ::android::hardware::weaver::V1_0::IWeaver::getService();
++	}
+ 	GottenConfig = false;
+ }
+ 
+@@ -56,6 +64,15 @@ bool Weaver::GetConfig() {
+ 	if (GottenConfig)
+ 		return true;
+ 
++	if (mAidlDevice != nullptr) {
++		auto r = mAidlDevice->getConfig(&aidlConfig);
++		if (r.isOk()) {
++			GottenConfig = true;
++			return true;
++		}
++		return false;
++	}
++
+ 	WeaverStatus status;
+ 	WeaverConfig cfg;
+ 
+@@ -76,6 +93,10 @@ bool Weaver::GetConfig() {
+ bool Weaver::GetSlots(uint32_t* slots) {
+ 	if (!GetConfig())
+ 		return false;
++	if (mAidlDevice != nullptr) {
++		*slots = aidlConfig.slots;
++		return true;
++	}
+ 	*slots = config.slots;
+ 	return true;
+ }
+@@ -83,6 +104,10 @@ bool Weaver::GetSlots(uint32_t* slots) {
+ bool Weaver::GetKeySize(uint32_t* keySize) {
+ 	if (!GetConfig())
+ 		return false;
++	if (mAidlDevice != nullptr) {
++		*keySize = aidlConfig.keySize;
++		return true;
++	}
+ 	*keySize = config.keySize;
+ 	return true;
+ }
+@@ -90,6 +115,10 @@ bool Weaver::GetKeySize(uint32_t* keySize) {
+ bool Weaver::GetValueSize(uint32_t* valueSize) {
+ 	if (!GetConfig())
+ 		return false;
++	if (mAidlDevice != nullptr) {
++		*valueSize = aidlConfig.valueSize;
++		return true;
++	}
+ 	*valueSize = config.valueSize;
+ 	return true;
+ }
+@@ -111,6 +140,17 @@ bool Weaver::WeaverVerify(const uint32_t slot, const void* weaver_key, std::vect
+ 		key[index] = *ptr;
+ 		ptr++;
+ 	}
++
++	if (mAidlDevice != nullptr) {
++		::aidl::android::hardware::weaver::WeaverReadResponse rep;
++		auto r = mAidlDevice->read(slot, key, &rep);
++		if (r.isOk() && rep.status == ::aidl::android::hardware::weaver::WeaverReadStatus::OK) {
++			*payload = rep.value;
++			return true;
++		}
++		return false;
++	}
++
+ 	const auto readRet = mDevice->read(slot, key, [&](WeaverReadStatus s, WeaverReadResponse r) {
+ 		callbackCalled = true;
+ 		status = s;
+diff --git a/Weaver1.h b/Weaver1.h
+index 22f401e..4a329cb 100644
+--- a/Weaver1.h
++++ b/Weaver1.h
+@@ -29,6 +29,7 @@
+ #include <utility>
+ 
+ #include <android/hardware/weaver/1.0/IWeaver.h>
++#include <aidl/android/hardware/weaver/IWeaver.h>
+ #include "Utils.h"
+ 
+ namespace android {
+@@ -40,7 +41,7 @@ class Weaver {
+ 	public:
+ 		Weaver();
+ 		// false if we failed to open the weaver device.
+-		explicit operator bool() { return mDevice.get() != nullptr; }
++		explicit operator bool() { return (mDevice.get() != nullptr) || (mAidlDevice != nullptr); }
+ 
+ 		bool GetSlots(uint32_t* slots);
+ 		bool GetKeySize(uint32_t* keySize);
+@@ -50,7 +51,10 @@ class Weaver {
+ 
+ 	private:
+ 		sp<hardware::weaver::V1_0::IWeaver> mDevice;
++		std::shared_ptr<::aidl::android::hardware::weaver::IWeaver> mAidlDevice;
++
+ 		hardware::weaver::V1_0::WeaverConfig config;
++		::aidl::android::hardware::weaver::WeaverConfig aidlConfig;
+ 		bool GottenConfig;
+ 
+ 		bool GetConfig();

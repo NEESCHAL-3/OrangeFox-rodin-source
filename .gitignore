@@ -23,3 +23,11 @@ images/*.sparse
 __pycache__/
 *.pyc
 tools/*.before-*
+
+# NEESCHAL local development checkpoints
+*.before-*
+RODIN-WIP-*.patch
+build-freezes/
+tools.before-*/
+patches/bootable-recovery/0008-recovery-finalize-rodin-auto-dfe-and-metadata-fs.patch
+patches/build-make/0002-build-fix-rodin-orangefox-build-environment.patch
