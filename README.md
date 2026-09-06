@@ -22,10 +22,12 @@ This source produces four release images:
 
 The HOS/OEM-port build is one region-agnostic image for supported Rodin firmware environments. There is no market-region build selector.
 
-The unified PLATFORM contains separate kernel-module trees for:
+The unified HOS/OEM-port PLATFORM retains module payloads from the proven stock baselines:
 
 - `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k`
 - `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k`
+
+These are stock module baselines, not an exact kernel-version whitelist. Recovery compatibility follows the Android15-6.6 GKI/KMI contract and compatible vendor environment, so compatible later 6.6.x GKI patchlevels do not require an exact version match.
 
 Android first-stage init selects the matching `/lib/modules/<kernel-release>` directory from the running kernel. There is no firmware-region build selector.
 
@@ -125,8 +127,8 @@ The current source has been validated for:
 
 The unified HOS architecture has been runtime-tested with both:
 
-- CN 6.6.77 kernel family
-- Global 6.6.89 kernel family
+- stock Android15-6.6 GKI kernels, runtime-tested through 6.6.118
+- compatible custom Android15-6.6 GKI kernels, runtime-tested with `6.6.142-EVONIX-COS-V3.5`
 
 The same unified HOS `vendor_boot` successfully loaded the correct stock module set, OrangeFox device modules, userdata mapping and Fastbootd on both kernel families.
 

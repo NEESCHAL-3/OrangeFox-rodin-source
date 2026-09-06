@@ -10,8 +10,8 @@ This source targets Xiaomi `rodin`.
 - [Supported devices](#supported-devices)
 - [Release profiles](#release-profiles)
 - [Unified HOS / OEM-Port compatibility](#unified-hos--oem-port-compatibility)
-- [6.6.77 kernel family](#667-kernel-family)
-- [6.6.89 kernel family](#6689-kernel-family)
+- [6.6.77 stock module baseline](#667-stock-module-baseline)
+- [6.6.89 stock module baseline](#6689-stock-module-baseline)
 - [Historical Global / India equivalence](#historical-global--india-equivalence)
 - [AOSP compatibility](#aosp-compatibility)
 - [AVB Enabled](#avb-enabled)
@@ -59,20 +59,20 @@ The unified HOS PLATFORM contains two complete module trees.
 
 | Firmware family | Verified kernel release |
 | --- | --- |
-| 6.6.77 kernel family | `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k` |
-| 6.6.89 kernel family | `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k` |
+| 6.6.77 stock baseline | `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k` |
+| 6.6.89 stock baseline | `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k` |
 
-First-stage init automatically selects the module directory matching the running kernel.
+These module payloads are proven stock baselines, not an exact running-kernel whitelist.
 
-No market-region build variable is required. Runtime selection follows the running kernel family.
+No market-region build variable is required. Runtime compatibility follows the Android15-6.6 GKI/KMI contract and compatible vendor environment rather than an exact 6.6.x patchlevel.
 
-## 6.6.77 kernel family
+## 6.6.77 stock module baseline
 
-The unified PLATFORM supports the Rodin 6.6.77 kernel family.
+The unified PLATFORM retains the proven Rodin 6.6.77 stock module baseline.
 
 The unified PLATFORM carries the complete matching 6.6.77 stock module set independently from the 6.6.89 module set.
 
-The unified HOS image has been runtime-tested under the Rodin 6.6.77 kernel family.
+The unified HOS image was originally validated against the Rodin 6.6.77 stock baseline.
 
 Verified behavior includes:
 
@@ -84,11 +84,11 @@ Verified behavior includes:
 - userdata block mapping
 - Fastbootd
 
-## 6.6.89 kernel family
+## 6.6.89 stock module baseline
 
-The unified PLATFORM supports the Rodin 6.6.89 kernel family.
+The unified PLATFORM retains the proven Rodin 6.6.89 stock module baseline.
 
-The unified HOS image has been runtime-tested under the Rodin 6.6.89 kernel family.
+The unified HOS image was originally validated against the Rodin 6.6.89 stock baseline.
 
 Verified behavior includes:
 
@@ -106,7 +106,16 @@ India and Global/MIXM stock PLATFORM ramdisks were directly compared.
 
 Their complete 244-module payloads are identical and use the same 6.6.89 module ABI.
 
-That comparison proved those stock regional packages share the same 6.6.89 module payload. Runtime image selection remains kernel-based, not region-based.
+That comparison proved those stock regional packages share the same 6.6.89 module payload. It is retained as a stock baseline; compatibility is governed by GKI/KMI and the vendor environment rather than region or exact patchlevel.
+
+## Additional GKI runtime validation
+
+The same HOS/OEM-port OrangeFox image has also been runtime-validated with newer compatible Android15-6.6 GKI kernels:
+
+- stock EEA `6.6.118-android15-8-ge56cf6b09cca-ab15511674-4k` — recovery booted with 551 loaded modules
+- custom `6.6.142-EVONIX-COS-V3.5` — recovery booted with 247 loaded modules, including Rodin touch, haptics and SCP modules
+
+This confirms that the stored 6.6.77 and 6.6.89 module payloads are compatibility baselines rather than an exact 6.6.x kernel-version whitelist.
 
 ## AOSP compatibility
 
@@ -202,9 +211,9 @@ There are no market-region-specific HOS release images.
 
 ## Support boundary
 
-Compatibility claims are based on the verified Rodin kernel and vendor environments described above. Market-region labels do not select the recovery image.
+Compatibility claims are based on the verified Rodin Android15-6.6 GKI/KMI and vendor environments described above. Market-region labels and exact 6.6.x patchlevels do not select the recovery image.
 
-Unrelated vendor environments, different kernel ABIs or substantially modified vendor boot layouts are outside the verified compatibility baseline.
+A different Android/LTS GKI family, incompatible KMI/vendor ABI, unrelated vendor environment, or substantially modified vendor_boot layout remains outside the verified compatibility baseline until tested.
 
 ---
 

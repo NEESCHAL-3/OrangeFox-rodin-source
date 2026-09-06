@@ -10,8 +10,8 @@ This document describes the region-agnostic OrangeFox HOS/OEM-port `vendor_boot`
 - [Goal](#goal)
 - [Final layout](#final-layout)
 - [Unified PLATFORM](#unified-platform)
-- [6.6.77 module tree](#667-module-tree)
-- [6.6.89 module tree](#6689-module-tree)
+- [6.6.77 stock module baseline](#667-stock-module-baseline)
+- [6.6.89 stock module baseline](#6689-stock-module-baseline)
 - [Runtime selection](#runtime-selection)
 - [Module metadata](#module-metadata)
 - [OrangeFox-specific modules](#orangefox-specific-modules)
@@ -31,7 +31,7 @@ Older rodin builds used a build-time firmware profile and produced region-specif
 
 The current design removes that requirement.
 
-There is now one HOS/OEM-port image containing everything required for both verified kernel families.
+There is now one HOS/OEM-port image designed around the compatible Android15-6.6 GKI/KMI and Rodin vendor environment rather than a fixed kernel patchlevel.
 
 ## Final layout
 
@@ -65,7 +65,7 @@ The PLATFORM contains two complete module trees:
 └── 6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k/
 ```
 
-## 6.6.77 module tree
+## 6.6.77 stock module baseline
 
 The 6.6.77 directory contains the complete matching Rodin stock module set plus the OrangeFox rodin-specific recovery modules required during recovery boot.
 
@@ -73,7 +73,7 @@ Verified 6.6.77 runtime kernel:
 
 `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k`
 
-## 6.6.89 module tree
+## 6.6.89 stock module baseline
 
 The 6.6.89 directory contains the complete matching Rodin stock module set plus the same OrangeFox rodin-specific recovery modules.
 
@@ -94,28 +94,22 @@ The stock module vermagic is:
 
 `6.6.89-android15-8-g03fb7c87b0b5-4k`
 
-This historical comparison proved that those regional stock packages share the same 6.6.89 module payload; runtime selection itself is kernel-based.
+This historical comparison proved that those regional stock packages share the same 6.6.89 module payload. That payload is retained as a stock baseline rather than an exact kernel-patchlevel requirement.
 
-## Runtime selection
+## GKI/KMI runtime compatibility
 
-No region property is used.
+No market-region property, firmware selector script, or custom Android region service is used.
 
-No firmware selector script is used.
+The retained 6.6.77 and 6.6.89 module payloads are proven stock baselines, not an exact kernel-version whitelist.
 
-No custom Android service is used.
+Rodin HOS/OEM-port OrangeFox has been runtime-tested with:
 
-Android first-stage init already reads the running kernel release with `uname -r`.
+- stock `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k`
+- stock `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k`
+- stock EEA `6.6.118-android15-8-ge56cf6b09cca-ab15511674-4k`
+- custom `6.6.142-EVONIX-COS-V3.5`
 
-When it finds an exact matching directory under `/lib/modules`, it uses that directory for module loading.
-
-Therefore:
-
-| Running kernel | Selected module tree |
-| --- | --- |
-| 6.6.77 | 6.6.77 module tree |
-| 6.6.89 | 6.6.89 module tree |
-
-The same `vendor_boot` automatically adapts to the running verified kernel family.
+The same recovery therefore is not tied to one 6.6.x patchlevel. Compatibility depends on a usable Android15-6.6 GKI/vendor-module environment rather than an exact `uname -r` directory match.
 
 ## Module metadata
 
@@ -123,9 +117,9 @@ Stock `modules.dep` originally used absolute paths such as:
 
 `/lib/modules/foo.ko`
 
-For the kernel-specific directory layout, dependency paths are relative to the selected module directory.
+For the stored stock-baseline layout, module dependency metadata remains internally consistent with its payload.
 
-This allows Android `libmodprobe` to resolve dependencies inside the correct kernel ABI tree.
+Android module loading resolves dependencies from the available compatible module environment; an exact running-kernel directory-name match is not the compatibility boundary.
 
 `modules.load.recovery` is preserved so first-stage recovery loading follows the verified rodin module sequence.
 
@@ -133,9 +127,9 @@ This allows Android `libmodprobe` to resolve dependencies inside the correct ker
 
 The recovery-specific rodin modules include the modules required for touch, haptics, SCP interaction and related device functionality.
 
-The same proven recovery module set is available in both kernel-release directories.
+The proven recovery module payload is retained with both stock baselines.
 
-Runtime testing confirmed that the custom recovery modules load successfully under both verified kernel families.
+Runtime testing confirmed that the Rodin recovery modules load successfully across the tested Android15-6.6 GKI environments, including stock 6.6.118 and custom 6.6.142.
 
 ## Why Zstandard is used
 
@@ -143,7 +137,7 @@ Keeping both complete stock module sets inside a single PLATFORM increased the u
 
 Using LZ4 for the entire combined PLATFORM left insufficient practical `vendor_boot` headroom.
 
-Both verified kernels expose Zstandard initramfs support.
+The stock baseline kernels used to construct the unified PLATFORM support Zstandard initramfs decompression.
 
 The unified PLATFORM is therefore compressed using Zstandard level 19.
 

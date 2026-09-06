@@ -12,7 +12,7 @@ This document describes the final recovery and `vendor_boot` architecture used b
 - [3. Unified HOS PLATFORM](#3-unified-hos-platform)
 - [4. Automatic module selection](#4-automatic-module-selection)
 - [5. Historical Global and India equivalence](#5-historical-global-and-india-equivalence)
-- [6. 6.6.77 kernel-family relationship](#6-667-kernel-family-relationship)
+- [6. 6.6.77 stock-baseline relationship](#6-667-stock-baseline-relationship)
 - [7. OrangeFox device modules](#7-orangefox-device-modules)
 - [8. Compression](#8-compression)
 - [9. Recovery DTB](#9-recovery-dtb)
@@ -82,28 +82,30 @@ It contains two complete kernel-module trees:
 └── 6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k/
 ```
 
-The 6.6.77 tree corresponds to the supported Rodin 6.6.77 kernel family.
+The 6.6.77 tree is a proven Rodin stock module baseline.
 
-The 6.6.89 tree corresponds to the supported Rodin 6.6.89 kernel family.
+The 6.6.89 tree is a proven Rodin stock module baseline.
 
 There is no build-time firmware-region selector.
 
-## 4. Automatic module selection
+## 4. GKI/KMI compatibility and module loading
 
-Android first-stage init reads the running kernel release with `uname -r`.
+The 6.6.77 and 6.6.89 module payloads retained in the unified PLATFORM are proven stock baselines, not an exact kernel-version whitelist.
 
-When an exact matching directory exists under `/lib/modules`, the first-stage module loader uses that directory.
+Rodin HOS/OEM-port recovery follows the Android15-6.6 GKI/KMI model. Compatible 6.6.x GKI kernels do not need to match one of those stored patchlevels exactly when the required KMI/vendor ABI remains compatible.
 
-Therefore:
+Runtime validation has confirmed OrangeFox on:
 
-| Running kernel | Selected module directory |
-| --- | --- |
-| 6.6.77 family | `/lib/modules/6.6.77-.../` |
-| 6.6.89 family | `/lib/modules/6.6.89-.../` |
+- stock `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k`
+- stock `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k`
+- stock EEA `6.6.118-android15-8-ge56cf6b09cca-ab15511674-4k`
+- custom `6.6.142-EVONIX-COS-V3.5`
 
-No region property, shell script, Android service or custom userspace selector is required.
+The stock 6.6.118 recovery session loaded 551 modules. The custom 6.6.142 session loaded 247 modules, including Rodin touch, haptics and SCP modules.
 
-The module metadata uses paths relative to the selected module directory so `libmodprobe` resolves dependencies inside the correct ABI tree.
+Module sources and mount visibility can differ between recovery environments, so compatibility does not depend on one `/lib/modules/<uname -r>` path or one `vendor_dlkm` mount state.
+
+No firmware-region selector is required.
 
 ## 5. Historical Global and India equivalence
 
@@ -115,11 +117,11 @@ Their 244-module payloads are identical and use the same 6.6.89 module ABI.
 
 The observed differences outside the module payload were limited to regional/build-property data and `system/etc/copylib.txt`.
 
-That comparison established one common 6.6.89 module payload for those stock packages. Current runtime selection is based only on the running kernel release.
+That comparison established one common 6.6.89 stock module payload. It is retained as a proven baseline and is not an exact running-kernel patchlevel requirement.
 
-## 6. 6.6.77 kernel-family relationship
+## 6. 6.6.77 stock-baseline relationship
 
-The Rodin 6.6.77 kernel family uses a module ABI distinct from the 6.6.89 family.
+The retained Rodin 6.6.77 stock baseline carries a module payload distinct from the 6.6.89 stock baseline.
 
 Its complete stock module set is retained independently in the unified PLATFORM.
 
@@ -129,7 +131,7 @@ The two kernel-family module trees remain independent; modules are never mixed a
 
 OrangeFox retains its rodin-specific recovery modules, including the touch, haptics and secure-element related modules needed by recovery.
 
-The proven device-specific modules are made available inside both kernel-release module directories so first-stage recovery loading continues to resolve correctly after exact kernel-directory selection.
+The proven device-specific recovery modules are retained with the stock baseline payloads. Runtime compatibility is not tied to an exact kernel-directory-name match.
 
 The same recovery module set was runtime-tested successfully under both supported kernel families.
 

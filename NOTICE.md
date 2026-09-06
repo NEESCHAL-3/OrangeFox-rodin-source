@@ -20,9 +20,9 @@ In particular, do not assume that proprietary firmware, kernel modules, Trusted 
 
 ## Firmware profiles
 
-The public HOS/OEM-port build is region-agnostic. It does not use a market-region firmware selector. Runtime compatibility is determined by the running kernel family and unified PLATFORM module layout.
+The public HOS/OEM-port build is region-agnostic. It does not use a market-region firmware selector. Runtime compatibility follows the Android15-6.6 GKI/KMI contract, compatible vendor environment, and unified PLATFORM rather than an exact 6.6.x patchlevel.
 
-The unified HOS/OEM-port PLATFORM is selected by the running Rodin kernel family rather than by a firmware-region profile. The repository intentionally does not ship a generic stock `vendor_boot` fallback image.
+The unified HOS/OEM-port PLATFORM is not selected by firmware market region or an exact kernel patchlevel; compatible Android15-6.6 GKI/KMI and vendor environments are supported. The repository intentionally does not ship a generic stock `vendor_boot` fallback image.
 
 ## External source patches
 

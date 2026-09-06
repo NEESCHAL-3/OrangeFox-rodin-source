@@ -6,7 +6,7 @@ Device-specific binary inputs used by the verified OrangeFox build for Xiaomi `r
 
 - `unified/vendor_ramdisk00` - unified HOS/OEM-port PLATFORM input
 
-The public recovery build is region-agnostic. There is no India, Global, China, EEA, or other market-region build selector. The running kernel release selects the matching module tree at first-stage init.
+The public recovery build is region-agnostic. There is no India, Global, China, EEA, or other market-region build selector. The stored module payloads provide proven stock baselines. Recovery compatibility is governed by the Android15-6.6 GKI/KMI contract and compatible vendor environment rather than requiring an exact kernel-version directory match.
 
 ## Shared inputs
 

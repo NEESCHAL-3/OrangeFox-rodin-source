@@ -69,7 +69,7 @@ The release matrix contains four images:
 | Unified HOS / OEM-Port | Available | Available |
 | AOSP | Available | Available |
 
-HOS/OEM-port uses one region-agnostic unified PLATFORM. Runtime module selection follows the running kernel family; AOSP remains a separate profile.
+HOS/OEM-port uses one region-agnostic unified PLATFORM. Compatibility follows the Android15-6.6 GKI/KMI contract and compatible vendor environment rather than an exact kernel patchlevel; AOSP remains a separate profile.
 
 ## Build entrypoint
 
@@ -81,11 +81,13 @@ From `device/xiaomi/rodin`, run:
 
 The release workflow applies canonical external patches, verifies pinned inputs, compiles OrangeFox, and generates all four release images. See [Building](../BUILDING.md) for the complete workflow.
 
-## Verified HOS kernel families
+## Runtime-proven Android15-6.6 GKI kernels
 
 | Firmware family | Verified kernel release |
 | --- | --- |
-| 6.6.77 family | `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k` |
-| 6.6.89 family | `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k` |
+| Stock baseline | `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k` |
+| Stock baseline | `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k` |
+| Stock EEA OTA | `6.6.118-android15-8-ge56cf6b09cca-ab15511674-4k` |
+| Custom GKI | `6.6.142-EVONIX-COS-V3.5` |
 
-See [Unified HOS](UNIFIED-HOS.md) for module selection details and [Verified Runtime Baseline](VERIFIED-BASELINE.md) for pinned inputs and validation results.
+See [Unified HOS](UNIFIED-HOS.md) for GKI/KMI and module-baseline details and [Verified Runtime Baseline](VERIFIED-BASELINE.md) for pinned inputs and validation results.

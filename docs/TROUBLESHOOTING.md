@@ -12,7 +12,7 @@ Diagnose build, boot, and recovery issues against the verified Xiaomi `rodin` ba
 - [Source patch application fails](#source-patch-application-fails)
 - [Wrong recovery profile](#wrong-recovery-profile)
 - [Android or recovery does not boot after flashing](#android-or-recovery-does-not-boot-after-flashing)
-- [Unified HOS kernel mismatch](#unified-hos-kernel-mismatch)
+- [GKI/KMI or vendor-module mismatch](#gkikmi-or-vendor-module-mismatch)
 - [Fastbootd does not appear](#fastbootd-does-not-appear)
 - [Touch problems](#touch-problems)
 - [Haptics problems](#haptics-problems)
@@ -122,18 +122,18 @@ fastboot getvar current-slot
 fastboot getvar product
 ```
 
-## Unified HOS kernel mismatch
+## GKI/KMI or vendor-module mismatch
 
 The verified HOS kernel families are:
 
 | Firmware family | Verified kernel release |
 | --- | --- |
-| 6.6.77 kernel family | `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k` |
-| 6.6.89 kernel family | `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k` |
+| 6.6.77 stock baseline | `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k` |
+| 6.6.89 stock baseline | `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k` |
 
-The unified PLATFORM selects modules using the exact running kernel release; firmware market region is not part of selection.
+The 6.6.77 and 6.6.89 payloads are stock baselines rather than an exact kernel-version whitelist. Compatible Android15-6.6 GKI kernels can boot recovery when the required KMI/vendor ABI remains compatible; firmware market region is not part of selection.
 
-If a substantially different kernel release is used, it may fall outside the verified module ABI baseline.
+If recovery fails after changing kernels, check whether the kernel remains within a compatible Android15-6.6 GKI/KMI and Rodin vendor-module environment. A different Android/LTS GKI family or incompatible KMI/vendor ABI is outside the verified baseline.
 
 Check in recovery:
 

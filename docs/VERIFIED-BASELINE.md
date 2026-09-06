@@ -89,10 +89,10 @@ The PLATFORM contains independent module trees for:
 
 | Firmware family | Verified kernel release |
 | --- | --- |
-| 6.6.77 kernel family | `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k` |
-| 6.6.89 kernel family | `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k` |
+| 6.6.77 stock baseline | `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k` |
+| 6.6.89 stock baseline | `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k` |
 
-Both supported kernel-family module trees contain the complete stock module payload required by their respective ABI before the OrangeFox device modules are added.
+Both stored stock-baseline payloads retain the complete stock module content required by their respective baseline environments before the OrangeFox device modules are added.
 
 ## Historical Global and India module equivalence
 
@@ -115,7 +115,7 @@ This historical comparison established a common 6.6.89 module payload for those 
 
 ## Unified HOS runtime validation
 
-The same unified HOS vendor_boot architecture was tested with both supported kernel families.
+The unified HOS vendor_boot architecture has now been tested across multiple compatible Android15-6.6 GKI patchlevels, including stock and custom kernels.
 
 6.6.77 test kernel:
 
@@ -136,7 +136,14 @@ Verified on both:
 - Fastbootd
 - userspace Fastboot identification
 
-The OrangeFox device-specific module set successfully loaded under both kernel families.
+The OrangeFox device-specific module set successfully loaded under the original 6.6.77 and 6.6.89 validation environments.
+
+Additional runtime validation also confirmed:
+
+- stock EEA 6.6.118 booted OrangeFox with 551 loaded modules
+- custom 6.6.142-EVONIX-COS-V3.5 booted OrangeFox with 247 loaded modules, including Rodin touch, haptics and SCP modules
+
+These results demonstrate that the stored 6.6.77 and 6.6.89 payloads are stock module baselines rather than an exact 6.6.x kernel-version whitelist.
 
 ## Unified prototype
 
@@ -193,11 +200,11 @@ The current recovery baseline includes verified support for:
 
 ## Support boundary
 
-The verified HOS compatibility baseline covers the supported Rodin 6.6.77 and 6.6.89 kernel families. Firmware market-region labels do not select the recovery image.
+The verified HOS compatibility baseline covers compatible Rodin Android15-6.6 GKI/KMI and vendor environments. Runtime proof currently includes stock 6.6.77, stock 6.6.89, stock EEA 6.6.118, and custom 6.6.142-EVONIX-COS-V3.5. Firmware market-region labels and exact 6.6.x patchlevels do not select the recovery image.
 
 AOSP remains a separate profile with its dedicated PLATFORM and bootconfig.
 
-Different kernel ABIs or unrelated vendor environments require separate validation before being declared supported.
+A different Android/LTS GKI family, incompatible KMI/vendor ABI, or unrelated vendor environment requires separate validation before being declared supported.
 
 ## Auto-DFE v2 validation
 

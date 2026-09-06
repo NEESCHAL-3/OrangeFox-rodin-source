@@ -13,4 +13,4 @@ sha256sum -c patches/SHA256SUMS
 git diff --check -- . ':(exclude)patches/**'
 ```
 
-Rodin recovery is **region-agnostic**. There is no India, Global, China, EEA, or other market-region build selector. Compatibility is determined by the ROM profile and running kernel family, not by the firmware region label. Changes introducing a new kernel family, module ABI, vendor_boot layout, or fundamentally different first-stage environment still require device validation before inclusion.
+Rodin recovery is **region-agnostic**. There is no India, Global, China, EEA, or other market-region build selector. Compatibility is determined by the ROM profile, Android GKI/KMI compatibility, and vendor environment, not by the firmware region label or exact 6.6.x patchlevel. Changes introducing a new Android/LTS GKI family, incompatible KMI/vendor ABI, vendor_boot layout, or fundamentally different first-stage environment still require device validation before inclusion.

@@ -115,12 +115,12 @@ SHA-256:
 
 `dda9762619ee1cbe3019735103ddd25c62ebd9d2431e991303d5855520d93389`
 
-It contains independent module trees for:
+It retains independent stock module baselines for:
 
-- Rodin 6.6.77 kernel family
-- Rodin 6.6.89 kernel family
+- Rodin 6.6.77
+- Rodin 6.6.89
 
-First-stage init selects the correct module directory from the running kernel release.
+These stored payloads are stock baselines, not an exact running-kernel whitelist. Runtime compatibility follows the Android15-6.6 GKI/KMI contract and compatible Rodin vendor environment.
 
 Do not add a market-region build variable back into the build system; runtime compatibility is determined by the kernel/vendor environment.
 
@@ -260,7 +260,7 @@ At minimum, recovery changes should be checked for:
 - slot reporting
 - USB OTG when USB/DT behavior changes
 
-Changes touching the unified HOS PLATFORM require testing against both the 6.6.77 and 6.6.89 kernel families.
+Changes affecting the unified HOS PLATFORM, module loading, or KMI compatibility must preserve the 6.6.77/6.6.89 stock baselines and be runtime-tested on a representative compatible Android15-6.6 GKI environment. Changes intended to preserve custom-GKI compatibility should also be checked with a compatible custom GKI.
 
 ## 12. ROM-install preservation
 

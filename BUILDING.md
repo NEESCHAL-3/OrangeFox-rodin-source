@@ -105,7 +105,7 @@ Binary and patch SHA-256 values are also checked by `tools/verify-build-inputs.s
 
 ## 5. Unified HOS PLATFORM
 
-HOS/OEM-port builds are region-agnostic and do not use a market-region build selector. Runtime compatibility follows the running kernel family.
+HOS/OEM-port builds are region-agnostic and do not use a market-region build selector. Runtime compatibility follows the Android15-6.6 GKI/KMI contract and compatible vendor environment rather than an exact kernel patchlevel.
 
 The pinned unified PLATFORM is:
 
@@ -115,14 +115,14 @@ SHA-256:
 
 `dda9762619ee1cbe3019735103ddd25c62ebd9d2431e991303d5855520d93389`
 
-It contains separate module trees for:
+The pinned PLATFORM retains module payloads from these proven stock baselines:
 
 | Firmware family | Verified kernel release |
 | --- | --- |
-| 6.6.77 kernel family | `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k` |
-| 6.6.89 kernel family | `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k` |
+| 6.6.77 stock baseline | `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k` |
+| 6.6.89 stock baseline | `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k` |
 
-First-stage init automatically selects the module directory matching the running kernel.
+These stock baselines are not a kernel-version whitelist. Runtime testing has also confirmed stock Android15-6.6 GKI 6.6.118 and custom `6.6.142-EVONIX-COS-V3.5` booting OrangeFox with Rodin modules loaded successfully.
 
 The HOS PLATFORM uses Zstandard compression.
 
