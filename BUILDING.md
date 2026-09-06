@@ -45,7 +45,15 @@ The build preflight checks required tools and pinned inputs before compilation.
 
 ## 2. Device tree
 
-Clone or place this repository at:
+From the OrangeFox 14.1 source root:
+
+```bash
+cd /path/to/fox_14.1
+mkdir -p device/xiaomi
+git clone https://github.com/NEESCHAL-3/OrangeFox-rodin-source.git device/xiaomi/rodin
+```
+
+The resulting device tree must be located at:
 
 `device/xiaomi/rodin`
 
@@ -154,15 +162,17 @@ run:
 
 The script performs the complete workflow:
 
-1. apply the complete canonical Rodin patch stack, including the proven recovery OTA and Virtual A/B fixes,
-2. verify the pinned source, patch hashes, and device inputs,
-3. compile OrangeFox,
-4. build the unified HOS AVB Enabled image,
-5. build the unified HOS AVB Disabled image,
-6. build the AOSP AVB Enabled image,
-7. build the AOSP AVB Disabled image.
+1. resolve the OrangeFox source root automatically,
+2. apply or verify the complete canonical Rodin patch stack,
+3. apply or verify the proven recovery OTA and Virtual A/B fixes,
+4. verify pinned source revisions, patch hashes, and device inputs,
+5. create a working-source freeze,
+6. compile OrangeFox once,
+7. build the HOS AVB Enabled and Disabled images,
+8. build the AOSP AVB Enabled and Disabled images,
+9. save SHA-256 hashes for all four final images.
 
-No firmware-region environment variable is required. If the repository is outside the Android tree, use `ORANGEFOX_TOP=/path/to/fox_14.1 ./build-release.sh`.
+No firmware-region selector, `ORANGEFOX_TOP`, or `RODIN_TOP_DIR` is required for the normal in-tree developer workflow.
 
 ## 8. Release outputs
 
@@ -173,7 +183,8 @@ out/target/product/rodin/
 ├── OrangeFox-R12.0-NEESCHAL-rodin-HOS-AVB-ENABLED.img
 ├── OrangeFox-R12.0-NEESCHAL-rodin-HOS-AVB-DISABLED.img
 ├── OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-ENABLED.img
-└── OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-DISABLED.img
+├── OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-DISABLED.img
+└── RODIN-ORANGEFOX-SHA256SUMS.txt
 ```
 
 The ordinary `vendor_boot.img` output is restored to the unified HOS AVB Enabled image after the release matrix is complete.

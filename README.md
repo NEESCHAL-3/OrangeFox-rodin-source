@@ -52,22 +52,26 @@ The AOSP profile does not use the unified HOS PLATFORM and remains a separate ve
 
 ## Build
 
-Clone this repository into an OrangeFox 14.1 source tree as:
-
-`device/xiaomi/rodin`
-
-Then build from the device-tree directory:
+From the OrangeFox 14.1 source root:
 
 ```bash
+cd /path/to/fox_14.1
+mkdir -p device/xiaomi
+git clone https://github.com/NEESCHAL-3/OrangeFox-rodin-source.git device/xiaomi/rodin
+cd device/xiaomi/rodin
 ./build-release.sh
 ```
 
+For the normal in-tree workflow, no `ORANGEFOX_TOP`, `RODIN_TOP_DIR`, manual patching, or manual repacking is required.
+
 The release script:
 
-1. applies the canonical rodin external-source patches,
-2. verifies pinned source revisions and binary inputs,
-3. compiles OrangeFox,
-4. builds all four release variants.
+1. resolves the OrangeFox source root automatically,
+2. applies or verifies the canonical rodin patch stack and proven OTA / Virtual A/B fixes,
+3. verifies pinned source revisions and binary inputs,
+4. creates a working-source freeze,
+5. compiles OrangeFox once,
+6. builds all four release variants and saves their SHA-256 hashes.
 
 Outputs are written to `out/target/product/rodin/`:
 
@@ -76,7 +80,8 @@ out/target/product/rodin/
 ├── OrangeFox-R12.0-NEESCHAL-rodin-HOS-AVB-ENABLED.img
 ├── OrangeFox-R12.0-NEESCHAL-rodin-HOS-AVB-DISABLED.img
 ├── OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-ENABLED.img
-└── OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-DISABLED.img
+├── OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-DISABLED.img
+└── RODIN-ORANGEFOX-SHA256SUMS.txt
 ```
 
 `vendor_boot.img` defaults to the unified HOS AVB-enabled image.
