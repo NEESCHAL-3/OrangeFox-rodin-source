@@ -73,7 +73,7 @@ They cover:
 - non-blocking BootControl lookup
 - non-blocking optional Fastbootd HAL lookup
 
-Apply them with:
+Release builds apply them automatically. For manual development source preparation, use:
 
 ```bash
 tools/apply-orangefox-patches.sh
@@ -83,7 +83,7 @@ The helper is designed to tolerate an already-prepared development tree and must
 
 ## 3. Source verification
 
-Run:
+For manual source verification, run:
 
 ```bash
 tools/verify-build-inputs.sh <orangefox-root>
@@ -105,7 +105,7 @@ Do not solve a verification failure by weakening or removing integrity checks.
 
 ## 4. Unified HOS development model
 
-HOS/OEM-port recovery no longer has China, Global or India build profiles.
+HOS/OEM-port recovery is region-agnostic. There are no India, Global, China, EEA, or other market-region build profiles.
 
 There is one pinned unified PLATFORM:
 
@@ -117,12 +117,12 @@ SHA-256:
 
 It contains independent module trees for:
 
-- CN 6.6.77
-- Global/MIXM + India 6.6.89
+- Rodin 6.6.77 kernel family
+- Rodin 6.6.89 kernel family
 
 First-stage init selects the correct module directory from the running kernel release.
 
-Do not add a firmware-region build variable back into the build system.
+Do not add a market-region build variable back into the build system; runtime compatibility is determined by the kernel/vendor environment.
 
 ## 5. Unified PLATFORM maintenance
 
@@ -173,7 +173,7 @@ This is the preferred public build entrypoint.
 It performs:
 
 ```text
-Apply canonical external patches
+Apply complete canonical Rodin patch stack, including proven recovery OTA / Virtual A/B fixes
     │
     ▼
 Verify source and binary inputs
@@ -202,7 +202,7 @@ out/target/product/rodin/
 └── OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-DISABLED.img
 ```
 
-Do not reintroduce separate CN, Global or India HOS release files.
+Do not reintroduce market-region-specific HOS release files.
 
 ## 9. Fastbootd development
 

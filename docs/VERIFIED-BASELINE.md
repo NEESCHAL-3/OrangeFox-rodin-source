@@ -11,7 +11,7 @@ This file records the currently verified OrangeFox baseline for Xiaomi `rodin`.
 - [Patched external repositories](#patched-external-repositories)
 - [Fastbootd patches](#fastbootd-patches)
 - [Unified HOS PLATFORM](#unified-hos-platform)
-- [Global and India module equivalence](#global-and-india-module-equivalence)
+- [Historical Global and India module equivalence](#historical-global-and-india-module-equivalence)
 - [Unified HOS runtime validation](#unified-hos-runtime-validation)
 - [Unified prototype](#unified-prototype)
 - [Verified release build](#verified-release-build)
@@ -46,9 +46,9 @@ Verified development revisions:
 
 | External repository | Verified development revision |
 | --- | --- |
-| `bootable/recovery` | `eaa1bf3d2c71b4c8c2ecccdb24f1170b0fe4d8e7` |
+| `bootable/recovery` | `15587c4fe7fbfff2825ec7ba8754066949060e15` |
 | `hardware/interfaces` | `61f0bcd25bdbf2b6d4d978fdfa348bf01078a8f8` |
-| `system/core` | `d4add349bc23456cd137d73b1acbcd789aaa5ed0` |
+| `system/core` | `f16d1d3fdd463571601dd01d526643cd0230aa43` |
 
 The remaining untouched source projects are verified against the pinned OrangeFox source manifest.
 
@@ -89,12 +89,12 @@ The PLATFORM contains independent module trees for:
 
 | Firmware family | Verified kernel release |
 | --- | --- |
-| CN | `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k` |
-| Global/MIXM and India | `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k` |
+| 6.6.77 kernel family | `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k` |
+| 6.6.89 kernel family | `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k` |
 
-The stock CN and 6.6.89 module sets each contain 244 stock modules before the OrangeFox device modules are added.
+Both supported kernel-family module trees contain the complete stock module payload required by their respective ABI before the OrangeFox device modules are added.
 
-## Global and India module equivalence
+## Historical Global and India module equivalence
 
 The stock Global/MIXM and India PLATFORM ramdisks were directly compared.
 
@@ -111,17 +111,17 @@ The observed content differences were limited to:
 - `prop.default`
 - `system/etc/copylib.txt`
 
-Therefore the unified HOS PLATFORM uses one 6.6.89 module tree for both Global/MIXM and India.
+This historical comparison established a common 6.6.89 module payload for those stock packages. Runtime selection is kernel-based rather than region-based.
 
 ## Unified HOS runtime validation
 
 The same unified HOS vendor_boot architecture was tested with both supported kernel families.
 
-CN test kernel:
+6.6.77 test kernel:
 
 `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k`
 
-Global/MIXM test kernel:
+6.6.89 test kernel:
 
 `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k`
 
@@ -144,7 +144,7 @@ The first dual-kernel AVB-disabled unified prototype SHA-256 was:
 
 `57df845928e5716ae486f9d1be4e2e577006040fe432b274ba4b16384dfab2ad`
 
-It was runtime-tested under both the CN 6.6.77 and Global 6.6.89 kernels.
+It was runtime-tested under both supported Rodin kernel families: 6.6.77 and 6.6.89.
 
 ## Verified release build
 
@@ -186,10 +186,14 @@ The current recovery baseline includes verified support for:
 - Format Data
 - USB OTG preservation
 - legacy ARM32 Edify installer fallback
+- file-backed ADB sideload package handling
+- Virtual A/B recovery snapshot/COW creation
+- loop-backed COW mapping when userdata is directly mounted
+- full recovery OTA installation through update_engine
 
 ## Support boundary
 
-The verified HOS compatibility baseline covers the supported rodin CN 6.6.77 and Global/India 6.6.89 kernel families.
+The verified HOS compatibility baseline covers the supported Rodin 6.6.77 and 6.6.89 kernel families. Firmware market-region labels do not select the recovery image.
 
 AOSP remains a separate profile with its dedicated PLATFORM and bootconfig.
 
@@ -197,7 +201,7 @@ Different kernel ABIs or unrelated vendor environments require separate validati
 
 ## Auto-DFE v2 validation
 
-Recovery revision:
+Historical recovery revision used for the Auto-DFE v2 validation:
 
 `eaa1bf3d2c71b4c8c2ecccdb24f1170b0fe4d8e7`
 

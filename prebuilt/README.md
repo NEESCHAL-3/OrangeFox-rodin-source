@@ -4,9 +4,9 @@ Device-specific binary inputs used by the verified OrangeFox build for Xiaomi `r
 
 ## Firmware input
 
-- `india/vendor_ramdisk00` - verified India platform ramdisk input
+- `unified/vendor_ramdisk00` - unified HOS/OEM-port PLATFORM input
 
-This public source release is India-only.
+The public recovery build is region-agnostic. There is no India, Global, China, EEA, or other market-region build selector. The running kernel release selects the matching module tree at first-stage init.
 
 ## Shared inputs
 
@@ -16,4 +16,4 @@ This public source release is India-only.
 
 Expected hashes are recorded in `../manifests/device-blobs.sha256`.
 
-No generic stock `vendor_boot` fallback image is bundled. Restore `vendor_boot.img` from the matching India firmware package if required.
+No generic stock `vendor_boot` fallback image is bundled. If stock recovery must be restored, use `vendor_boot.img` from firmware matching the installed kernel/vendor environment.

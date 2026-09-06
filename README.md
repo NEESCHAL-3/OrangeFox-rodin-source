@@ -20,12 +20,12 @@ This source produces four release images:
 
 ### Unified HOS / OEM-Port
 
-The HOS build is one universal image for supported CN, Global/MIXM and India firmware.
+The HOS/OEM-port build is one region-agnostic image for supported Rodin firmware environments. There is no market-region build selector.
 
 The unified PLATFORM contains separate kernel-module trees for:
 
-- CN: `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k`
-- Global/MIXM and India: `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k`
+- `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k`
+- `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k`
 
 Android first-stage init selects the matching `/lib/modules/<kernel-release>` directory from the running kernel. There is no firmware-region build selector.
 
@@ -46,7 +46,7 @@ AOSP uses:
 - `prebuilt/aosp/vendor_ramdisk00`
 - `prebuilt/aosp/bootconfig`
 
-The AOSP profile does not use the CN HOS module tree.
+The AOSP profile does not use the unified HOS PLATFORM and remains a separate vendor/recovery environment.
 
 ## Build
 
@@ -189,10 +189,10 @@ Four `vendor_boot` variants are generated:
 
 | Profile | PLATFORM | AVB |
 | --- | --- | --- |
-| HOS / OEM-Port | Hybrid China + Global | Enabled |
-| HOS / OEM-Port | Hybrid China + Global | Disabled |
-| AOSP | Global-only | Enabled |
-| AOSP | Global-only | Disabled |
+| HOS / OEM-Port | Unified region-agnostic PLATFORM | Enabled |
+| HOS / OEM-Port | Unified region-agnostic PLATFORM | Disabled |
+| AOSP | Dedicated AOSP PLATFORM | Enabled |
+| AOSP | Dedicated AOSP PLATFORM | Disabled |
 
 The HOS/OEM and AOSP PLATFORM layouts are intentionally different and must not be merged.
 
@@ -206,13 +206,13 @@ The current build uses:
 - `patches/system-vold/0001-vold-restore-orangefox-decryption-support.patch`
 - `patches/vendor-twrp/0001-twrp-fix-rodin-orangefox-build-configuration.patch`
 
-Apply the complete patch stack with:
+Normal release builds apply the complete canonical patch stack automatically through `./build-release.sh`. Manual patch application is only needed for lower-level development and can be run with:
 
     ./tools/apply-orangefox-patches.sh
 
 ### Verify source and build inputs
 
-Run:
+Verification is also automatic during `./build-release.sh`. For manual development verification, run:
 
     ./tools/verify-build-inputs.sh
 
@@ -232,8 +232,7 @@ From `device/xiaomi/rodin`, run:
 
     ./build-release.sh
 
-This performs source/input verification, builds OrangeFox, and generates all
-four HOS/AOSP × AVB Enabled/Disabled `vendor_boot` images.
+This automatically applies the complete Rodin patch stack, verifies source and build inputs, builds OrangeFox, and generates all four HOS/AOSP × AVB Enabled/Disabled `vendor_boot` images.
 
 For a constrained builder:
 

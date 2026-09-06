@@ -23,6 +23,7 @@ docs/
 ├── DEVELOPMENT.md
 ├── LEGACY-EDIFY.md
 ├── PATCHES.md
+├── RODIN_RECOVERY_OTA_PROVEN_2026-09-06.md
 ├── TROUBLESHOOTING.md
 ├── UNIFIED-HOS.md
 ├── USB-OTG.md
@@ -38,7 +39,7 @@ The [build guide](../BUILDING.md) and [contribution guidelines](../CONTRIBUTING.
 | Guide | Scope |
 | --- | --- |
 | [Architecture](ARCHITECTURE.md) | Recovery placement, vendor ramdisks, module loading, and build flow |
-| [Unified HOS / OEM-Port](UNIFIED-HOS.md) | CN + Global/MIXM + India unified PLATFORM design |
+| [Unified HOS / OEM-Port](UNIFIED-HOS.md) | Region-agnostic unified PLATFORM and runtime kernel-family selection |
 | [Compatibility](COMPATIBILITY.md) | HOS/AOSP profiles, AVB variants, and verified firmware families |
 
 ### Development and validation
@@ -47,7 +48,8 @@ The [build guide](../BUILDING.md) and [contribution guidelines](../CONTRIBUTING.
 | --- | --- |
 | [Building](../BUILDING.md) | Complete source setup and release build workflow |
 | [Development workflow](DEVELOPMENT.md) | Contributor workflow, PLATFORM maintenance, and runtime validation |
-| [External source patches](PATCHES.md) | Recovery, build/make, and Fastbootd patches and their hashes |
+| [External source patches](PATCHES.md) | Recovery, build/make, Fastbootd, and proven OTA/Virtual A/B patches |
+| [Proven recovery OTA](RODIN_RECOVERY_OTA_PROVEN_2026-09-06.md) | End-to-end ADB sideload, update_engine, snapshot/COW, and target-slot boot validation |
 | [Verified runtime baseline](VERIFIED-BASELINE.md) | Pinned revisions, SHA-256 values, and runtime-tested state |
 
 ### Recovery behavior and troubleshooting
@@ -67,7 +69,7 @@ The release matrix contains four images:
 | Unified HOS / OEM-Port | Available | Available |
 | AOSP | Available | Available |
 
-HOS uses one unified PLATFORM for supported CN, Global/MIXM, and India firmware. AOSP remains a separate profile.
+HOS/OEM-port uses one region-agnostic unified PLATFORM. Runtime module selection follows the running kernel family; AOSP remains a separate profile.
 
 ## Build entrypoint
 
@@ -83,7 +85,7 @@ The release workflow applies canonical external patches, verifies pinned inputs,
 
 | Firmware family | Verified kernel release |
 | --- | --- |
-| CN | `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k` |
-| Global/MIXM and India | `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k` |
+| 6.6.77 family | `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k` |
+| 6.6.89 family | `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k` |
 
 See [Unified HOS](UNIFIED-HOS.md) for module selection details and [Verified Runtime Baseline](VERIFIED-BASELINE.md) for pinned inputs and validation results.

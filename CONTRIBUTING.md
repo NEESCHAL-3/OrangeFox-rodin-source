@@ -13,4 +13,4 @@ sha256sum -c patches/SHA256SUMS
 git diff --check -- . ':(exclude)patches/**'
 ```
 
-The maintained firmware profile is **India only**. Other regional profiles require separate runtime validation before inclusion.
+Rodin recovery is **region-agnostic**. There is no India, Global, China, EEA, or other market-region build selector. Compatibility is determined by the ROM profile and running kernel family, not by the firmware region label. Changes introducing a new kernel family, module ABI, vendor_boot layout, or fundamentally different first-stage environment still require device validation before inclusion.

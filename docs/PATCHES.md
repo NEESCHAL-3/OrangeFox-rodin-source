@@ -53,7 +53,7 @@ The complete patch is the machine-friendly input used by automated source prepar
 
 The current verified development recovery revision is:
 
-`eaa1bf3d2c71b4c8c2ecccdb24f1170b0fe4d8e7`
+`15587c4fe7fbfff2825ec7ba8754066949060e15`
 
 Because later recovery development can modify lines originally introduced by the complete patch, `apply-orangefox-patches.sh` also recognizes the already-prepared recovery state through verified source markers instead of attempting to apply the complete patch twice.
 
@@ -107,7 +107,22 @@ It prevents recovery Fastbootd from hanging while waiting for optional HAL servi
 
 The verified development revision containing this change is:
 
-`d4add349bc23456cd137d73b1acbcd789aaa5ed0`
+`f16d1d3fdd463571601dd01d526643cd0230aa43`
+
+## Proven recovery OTA / Virtual A/B patches
+
+The current runtime-proven recovery OTA stack additionally includes:
+
+- `patches/bootable-recovery/0002-recovery-fix-broken-legacy-fde-decrypt-watchdog.patch`
+- `patches/bootable-recovery/0003-recovery-fix-rodin-adb-sideload-and-ab-ota.patch`
+- `patches/system-core/0001-fs_mgr-fix-virtual-ab-image-cleanup-in-recovery.patch`
+- `patches/system-core/0002-fs_mgr-support-file-backed-virtual-ab-cows-in-recovery.patch`
+
+These provide the proven sideload package handling, decrypt-watchdog correction, Virtual A/B recovery cleanup, and adaptive file-backed COW mapping used by the successful end-to-end recovery OTA test.
+
+Their exact hashes are tracked by `PATCHSET-RECOVERY-OTA.sha256`. Normal release builds apply this runtime stack automatically through `tools/apply-orangefox-patches.sh`.
+
+See `RODIN_RECOVERY_OTA_PROVEN_2026-09-06.md` for the runtime validation record.
 
 ## Fastbootd runtime validation
 

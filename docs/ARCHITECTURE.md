@@ -11,8 +11,8 @@ This document describes the final recovery and `vendor_boot` architecture used b
 - [2. Vendor ramdisk layout](#2-vendor-ramdisk-layout)
 - [3. Unified HOS PLATFORM](#3-unified-hos-platform)
 - [4. Automatic module selection](#4-automatic-module-selection)
-- [5. Global and India relationship](#5-global-and-india-relationship)
-- [6. CN relationship](#6-cn-relationship)
+- [5. Historical Global and India equivalence](#5-historical-global-and-india-equivalence)
+- [6. 6.6.77 kernel-family relationship](#6-667-kernel-family-relationship)
 - [7. OrangeFox device modules](#7-orangefox-device-modules)
 - [8. Compression](#8-compression)
 - [9. Recovery DTB](#9-recovery-dtb)
@@ -82,9 +82,9 @@ It contains two complete kernel-module trees:
 └── 6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k/
 ```
 
-The 6.6.77 tree corresponds to the CN kernel family.
+The 6.6.77 tree corresponds to the supported Rodin 6.6.77 kernel family.
 
-The 6.6.89 tree corresponds to the Global/MIXM and India kernel family.
+The 6.6.89 tree corresponds to the supported Rodin 6.6.89 kernel family.
 
 There is no build-time firmware-region selector.
 
@@ -98,14 +98,14 @@ Therefore:
 
 | Running kernel | Selected module directory |
 | --- | --- |
-| CN 6.6.77 | `/lib/modules/6.6.77-.../` |
-| Global/India 6.6.89 | `/lib/modules/6.6.89-.../` |
+| 6.6.77 family | `/lib/modules/6.6.77-.../` |
+| 6.6.89 family | `/lib/modules/6.6.89-.../` |
 
 No region property, shell script, Android service or custom userspace selector is required.
 
 The module metadata uses paths relative to the selected module directory so `libmodprobe` resolves dependencies inside the correct ABI tree.
 
-## 5. Global and India relationship
+## 5. Historical Global and India equivalence
 
 The stock Global/MIXM and India PLATFORM ramdisks were compared directly.
 
@@ -115,15 +115,15 @@ Their 244-module payloads are identical and use the same 6.6.89 module ABI.
 
 The observed differences outside the module payload were limited to regional/build-property data and `system/etc/copylib.txt`.
 
-The unified HOS image therefore uses one 6.6.89 module tree for both Global/MIXM and India.
+That comparison established one common 6.6.89 module payload for those stock packages. Current runtime selection is based only on the running kernel release.
 
-## 6. CN relationship
+## 6. 6.6.77 kernel-family relationship
 
-CN uses the 6.6.77 kernel family and a different module ABI.
+The Rodin 6.6.77 kernel family uses a module ABI distinct from the 6.6.89 family.
 
 Its complete stock module set is retained independently in the unified PLATFORM.
 
-No Global module replaces a CN module at runtime, and no CN stock module replaces a Global stock module at runtime.
+The two kernel-family module trees remain independent; modules are never mixed across ABI trees at runtime.
 
 ## 7. OrangeFox device modules
 
@@ -195,7 +195,7 @@ It uses:
 - `prebuilt/aosp/vendor_ramdisk00`
 - `prebuilt/aosp/bootconfig`
 
-The AOSP builder does not use the unified HOS PLATFORM and does not carry the CN HOS module tree.
+The AOSP builder does not use the unified HOS PLATFORM and remains a separate vendor/recovery environment.
 
 This separation is intentional because the AOSP vendor environment differs from the OEM/HOS environment.
 
@@ -229,12 +229,12 @@ The default `vendor_boot.img` is restored to the unified HOS AVB Enabled image a
 
 The unified HOS architecture has been boot-tested with:
 
-- CN 6.6.77 kernel
-- Global/MIXM 6.6.89 kernel
+- Rodin 6.6.77 kernel
+- Rodin 6.6.89 kernel
 
 The same unified `vendor_boot` successfully provided:
 
-- the correct regional stock module tree
+- the correct kernel-family stock module tree
 - OrangeFox device modules
 - touch
 - haptics

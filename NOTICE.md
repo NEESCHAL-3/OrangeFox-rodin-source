@@ -20,9 +20,9 @@ In particular, do not assume that proprietary firmware, kernel modules, Trusted 
 
 ## Firmware profiles
 
-The public build configuration uses the runtime-verified India firmware profile only.
+The public HOS/OEM-port build is region-agnostic. It does not use a market-region firmware selector. Runtime compatibility is determined by the running kernel family and unified PLATFORM module layout.
 
-The firmware-specific platform ramdisk must match the target firmware release. The repository intentionally does not ship a generic stock `vendor_boot` fallback image.
+The unified HOS/OEM-port PLATFORM is selected by the running Rodin kernel family rather than by a firmware-region profile. The repository intentionally does not ship a generic stock `vendor_boot` fallback image.
 
 ## External source patches
 

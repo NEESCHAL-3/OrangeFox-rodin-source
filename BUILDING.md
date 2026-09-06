@@ -97,15 +97,15 @@ The verified patched development revisions are:
 
 | External repository | Verified development revision |
 | --- | --- |
-| `bootable/recovery` | `eaa1bf3d2c71b4c8c2ecccdb24f1170b0fe4d8e7` |
+| `bootable/recovery` | `15587c4fe7fbfff2825ec7ba8754066949060e15` |
 | `hardware/interfaces` | `61f0bcd25bdbf2b6d4d978fdfa348bf01078a8f8` |
-| `system/core` | `d4add349bc23456cd137d73b1acbcd789aaa5ed0` |
+| `system/core` | `f16d1d3fdd463571601dd01d526643cd0230aa43` |
 
 Binary and patch SHA-256 values are also checked by `tools/verify-build-inputs.sh`.
 
 ## 5. Unified HOS PLATFORM
 
-HOS/OEM-port builds do not use a firmware-region build selector.
+HOS/OEM-port builds are region-agnostic and do not use a market-region build selector. Runtime compatibility follows the running kernel family.
 
 The pinned unified PLATFORM is:
 
@@ -119,8 +119,8 @@ It contains separate module trees for:
 
 | Firmware family | Verified kernel release |
 | --- | --- |
-| CN | `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k` |
-| Global/MIXM and India | `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k` |
+| 6.6.77 kernel family | `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k` |
+| 6.6.89 kernel family | `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k` |
 
 First-stage init automatically selects the module directory matching the running kernel.
 
@@ -154,15 +154,15 @@ run:
 
 The script performs the complete workflow:
 
-1. apply canonical external-source patches,
-2. verify the pinned source and device inputs,
+1. apply the complete canonical Rodin patch stack, including the proven recovery OTA and Virtual A/B fixes,
+2. verify the pinned source, patch hashes, and device inputs,
 3. compile OrangeFox,
 4. build the unified HOS AVB Enabled image,
 5. build the unified HOS AVB Disabled image,
 6. build the AOSP AVB Enabled image,
 7. build the AOSP AVB Disabled image.
 
-No firmware-region environment variable is required.
+No firmware-region environment variable is required. If the repository is outside the Android tree, use `ORANGEFOX_TOP=/path/to/fox_14.1 ./build-release.sh`.
 
 ## 8. Release outputs
 

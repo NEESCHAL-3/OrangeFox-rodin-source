@@ -7,11 +7,14 @@ if [[ -n "${ORANGEFOX_TOP:-}" ]]; then
     FOX="$(cd -- "${ORANGEFOX_TOP}" && pwd -P)"
 elif [[ -n "${RODIN_TOP_DIR:-}" ]]; then
     FOX="$(cd -- "${RODIN_TOP_DIR}" && pwd -P)"
+elif [[ -f "${REPO}/../../../build/envsetup.sh" ]]; then
+    FOX="$(cd -- "${REPO}/../../.." && pwd -P)"
 elif [[ -f "${REPO}/../fox_14.1/build/envsetup.sh" ]]; then
     FOX="$(cd -- "${REPO}/../fox_14.1" && pwd -P)"
 else
     echo "ERROR: OrangeFox 14.1 source tree not found." >&2
-    echo "Place this repository beside fox_14.1 or set:" >&2
+    echo "Place this repository at device/xiaomi/rodin inside the OrangeFox tree," >&2
+    echo "keep it beside fox_14.1, or set:" >&2
     echo "  ORANGEFOX_TOP=/path/to/fox_14.1" >&2
     exit 1
 fi

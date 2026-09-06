@@ -80,7 +80,7 @@ If a patch is neither applicable nor already represented by the verified source 
 
 ## Wrong recovery profile
 
-There is no China, Global or India HOS build selector anymore.
+There is no India, Global, China, EEA, or other market-region HOS build selector. HOS/OEM-port recovery is region-agnostic.
 
 For HyperOS/OEM-port environments use the unified HOS image.
 
@@ -128,10 +128,10 @@ The verified HOS kernel families are:
 
 | Firmware family | Verified kernel release |
 | --- | --- |
-| CN | `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k` |
-| Global/MIXM and India | `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k` |
+| 6.6.77 kernel family | `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k` |
+| 6.6.89 kernel family | `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k` |
 
-The unified PLATFORM selects modules using the exact running kernel release.
+The unified PLATFORM selects modules using the exact running kernel release; firmware market region is not part of selection.
 
 If a substantially different kernel release is used, it may fall outside the verified module ABI baseline.
 

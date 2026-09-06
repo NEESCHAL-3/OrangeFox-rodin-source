@@ -10,9 +10,9 @@ This source targets Xiaomi `rodin`.
 - [Supported devices](#supported-devices)
 - [Release profiles](#release-profiles)
 - [Unified HOS / OEM-Port compatibility](#unified-hos--oem-port-compatibility)
-- [CN firmware](#cn-firmware)
-- [Global / MIXM firmware](#global--mixm-firmware)
-- [India firmware](#india-firmware)
+- [6.6.77 kernel family](#667-kernel-family)
+- [6.6.89 kernel family](#6689-kernel-family)
+- [Historical Global / India equivalence](#historical-global--india-equivalence)
 - [AOSP compatibility](#aosp-compatibility)
 - [AVB Enabled](#avb-enabled)
 - [AVB Disabled](#avb-disabled)
@@ -39,7 +39,7 @@ The release build produces two recovery profiles:
 
 | Profile | Intended ROM environment | Firmware model |
 | --- | --- | --- |
-| HOS / OEM-Port | HyperOS and compatible OEM-port ROMs | Unified CN + Global/MIXM + India |
+| HOS / OEM-Port | HyperOS and compatible OEM-port ROMs | Region-agnostic unified PLATFORM |
 | AOSP | Supported AOSP-based ROMs | Separate AOSP profile |
 
 Each profile is available as:
@@ -53,26 +53,26 @@ This results in four release images total.
 
 There is one HOS/OEM-port `vendor_boot`.
 
-There are no separate China, Global or India release images.
+There are no market-region-specific HOS release images.
 
 The unified HOS PLATFORM contains two complete module trees.
 
 | Firmware family | Verified kernel release |
 | --- | --- |
-| CN | `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k` |
-| Global/MIXM and India | `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k` |
+| 6.6.77 kernel family | `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k` |
+| 6.6.89 kernel family | `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k` |
 
 First-stage init automatically selects the module directory matching the running kernel.
 
-No firmware-region build variable is required.
+No market-region build variable is required. Runtime selection follows the running kernel family.
 
-## CN firmware
+## 6.6.77 kernel family
 
-CN uses the 6.6.77 kernel family.
+The unified PLATFORM supports the Rodin 6.6.77 kernel family.
 
-The unified PLATFORM carries the complete matching CN stock module set independently from the 6.6.89 module set.
+The unified PLATFORM carries the complete matching 6.6.77 stock module set independently from the 6.6.89 module set.
 
-The unified HOS image has been runtime-tested under the CN 6.6.77 kernel.
+The unified HOS image has been runtime-tested under the Rodin 6.6.77 kernel family.
 
 Verified behavior includes:
 
@@ -84,11 +84,11 @@ Verified behavior includes:
 - userdata block mapping
 - Fastbootd
 
-## Global / MIXM firmware
+## 6.6.89 kernel family
 
-Global/MIXM uses the 6.6.89 kernel family.
+The unified PLATFORM supports the Rodin 6.6.89 kernel family.
 
-The unified HOS image has been runtime-tested under the stock Global/MIXM 6.6.89 kernel.
+The unified HOS image has been runtime-tested under the Rodin 6.6.89 kernel family.
 
 Verified behavior includes:
 
@@ -100,13 +100,13 @@ Verified behavior includes:
 - userdata block mapping
 - Fastbootd
 
-## India firmware
+## Historical Global / India equivalence
 
 India and Global/MIXM stock PLATFORM ramdisks were directly compared.
 
 Their complete 244-module payloads are identical and use the same 6.6.89 module ABI.
 
-The unified HOS image therefore uses the same 6.6.89 module tree for Global/MIXM and India firmware.
+That comparison proved those stock regional packages share the same 6.6.89 module payload. Runtime image selection remains kernel-based, not region-based.
 
 ## AOSP compatibility
 
@@ -198,11 +198,11 @@ OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-ENABLED.img
 OrangeFox-R12.0-NEESCHAL-rodin-AOSP-AVB-DISABLED.img
 ```
 
-There are no region-specific HOS release images anymore.
+There are no market-region-specific HOS release images.
 
 ## Support boundary
 
-Compatibility claims in this repository are based on the verified rodin firmware and kernel families described above.
+Compatibility claims are based on the verified Rodin kernel and vendor environments described above. Market-region labels do not select the recovery image.
 
 Unrelated vendor environments, different kernel ABIs or substantially modified vendor boot layouts are outside the verified compatibility baseline.
 

@@ -2,7 +2,7 @@
 
 [Repository](../README.md) / [Documentation](README.md)
 
-This document describes why one OrangeFox HOS/OEM-port `vendor_boot` can support the verified Xiaomi `rodin` CN, Global/MIXM and India firmware families.
+This document describes the region-agnostic OrangeFox HOS/OEM-port `vendor_boot` design for Xiaomi `rodin`, where runtime compatibility is selected by the running kernel family rather than a market-region profile.
 
 <details>
 <summary>On this page</summary>
@@ -10,8 +10,8 @@ This document describes why one OrangeFox HOS/OEM-port `vendor_boot` can support
 - [Goal](#goal)
 - [Final layout](#final-layout)
 - [Unified PLATFORM](#unified-platform)
-- [CN module tree](#cn-module-tree)
-- [Global / India module tree](#global--india-module-tree)
+- [6.6.77 module tree](#667-module-tree)
+- [6.6.89 module tree](#6689-module-tree)
 - [Runtime selection](#runtime-selection)
 - [Module metadata](#module-metadata)
 - [OrangeFox-specific modules](#orangefox-specific-modules)
@@ -65,19 +65,19 @@ The PLATFORM contains two complete module trees:
 └── 6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k/
 ```
 
-## CN module tree
+## 6.6.77 module tree
 
-The 6.6.77 directory contains the complete CN stock module set plus the OrangeFox rodin-specific recovery modules required during recovery boot.
+The 6.6.77 directory contains the complete matching Rodin stock module set plus the OrangeFox rodin-specific recovery modules required during recovery boot.
 
-CN runtime kernel verified:
+Verified 6.6.77 runtime kernel:
 
 `6.6.77-android15-8-gca30f3b4bef6-abogki440974771-4k`
 
-## Global / India module tree
+## 6.6.89 module tree
 
-The 6.6.89 directory contains the complete Global/India stock module set plus the same OrangeFox rodin-specific recovery modules.
+The 6.6.89 directory contains the complete matching Rodin stock module set plus the same OrangeFox rodin-specific recovery modules.
 
-Global runtime kernel verified:
+Verified 6.6.89 runtime kernel:
 
 `6.6.89-android15-8-g8e4be6b47e40-ab14134548-4k`
 
@@ -94,7 +94,7 @@ The stock module vermagic is:
 
 `6.6.89-android15-8-g03fb7c87b0b5-4k`
 
-Therefore Global/MIXM and India share one module tree in the unified image.
+This historical comparison proved that those regional stock packages share the same 6.6.89 module payload; runtime selection itself is kernel-based.
 
 ## Runtime selection
 
@@ -112,8 +112,8 @@ Therefore:
 
 | Running kernel | Selected module tree |
 | --- | --- |
-| 6.6.77 | CN |
-| 6.6.89 | Global/India |
+| 6.6.77 | 6.6.77 module tree |
+| 6.6.89 | 6.6.89 module tree |
 
 The same `vendor_boot` automatically adapts to the running verified kernel family.
 
@@ -183,7 +183,7 @@ and:
 
 `prebuilt/aosp/bootconfig`
 
-AOSP does not use the unified HOS PLATFORM and does not carry the CN HOS module tree.
+AOSP does not use the unified HOS PLATFORM and remains a separate vendor/recovery environment.
 
 ## Runtime proof
 
@@ -193,8 +193,8 @@ The first unified AVB-disabled prototype had SHA-256:
 
 The exact same image booted OrangeFox with:
 
-- CN 6.6.77 kernel
-- Global/MIXM 6.6.89 kernel
+- Rodin 6.6.77 kernel
+- Rodin 6.6.89 kernel
 
 Verified under both included:
 
@@ -226,7 +226,7 @@ Release images
     └── AVB Disabled
 ```
 
-There are no separate CN, Global or India HOS release images.
+There are no market-region-specific HOS release images.
 
 ## Developer workflow
 
