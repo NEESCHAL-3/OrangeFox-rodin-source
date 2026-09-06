@@ -19,6 +19,20 @@ UPDATE_ENGINE_PATCH="${DEVICE_DIR}/patches/system-update-engine/0001-update-engi
 VOLD_PATCH="${DEVICE_DIR}/patches/system-vold/0001-vold-restore-orangefox-decryption-support.patch"
 VENDOR_TWRP_PATCH="${DEVICE_DIR}/patches/vendor-twrp/0001-twrp-fix-rodin-orangefox-build-configuration.patch"
 
+recovery_complete_markers_present() {
+    local marker
+
+    for marker in \
+        OF_SKIP_POST_DECRYPT_THEME_RELOAD \
+        OF_LOAD_DEFAULT_LANGUAGE_BEFORE_DECRYPT \
+        fallback_face \
+        processKeyChord; do
+        grep -RqsF -- "${marker}" "${RECOVERY_DIR}" || return 1
+    done
+
+    return 0
+}
+
 apply_patch_once() {
     local repository="$1" patch_file="$2" label="$3"
 
@@ -46,7 +60,13 @@ apply_patch_once "${HARDWARE_INTERFACES_DIR}" "${BOOTCONTROL_PATCH}" "BootContro
 apply_patch_once "${SYSTEM_CORE_DIR}" "${FASTBOOTD_PATCH}" "fastbootd non-blocking HAL lookup"
 
 apply_patch_once "${BUILD_DIR}" "${BUILD_PATCH}" "OrangeFox build/make"
-apply_patch_once "${RECOVERY_DIR}" "${RECOVERY_PATCH}" "OrangeFox recovery"
+
+if recovery_complete_markers_present; then
+    echo "OrangeFox recovery patch is already integrated (verified source markers)"
+else
+    apply_patch_once "${RECOVERY_DIR}" "${RECOVERY_PATCH}" "OrangeFox recovery"
+fi
+
 apply_patch_once "${UPDATE_ENGINE_DIR}" "${UPDATE_ENGINE_PATCH}" "update_engine A/B recovery support"
 apply_patch_once "${VOLD_DIR}" "${VOLD_PATCH}" "OrangeFox vold decryption support"
 apply_patch_once "${VENDOR_TWRP_DIR}" "${VENDOR_TWRP_PATCH}" "OrangeFox vendor/twrp configuration"

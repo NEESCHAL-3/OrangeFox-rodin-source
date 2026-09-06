@@ -25,15 +25,21 @@ apply_one() {
 }
 
 echo "===== SYSTEM/CORE RUNTIME FIXES ====="
-for patch in "$PATCH_ROOT"/patches/system-core/*.patch; do
-    [ -f "$patch" ] || continue
+for patch in     "$PATCH_ROOT/patches/system-core/0001-fs_mgr-fix-virtual-ab-image-cleanup-in-recovery.patch"     "$PATCH_ROOT/patches/system-core/0002-fs_mgr-support-file-backed-virtual-ab-cows-in-recovery.patch"; do
+    [ -f "$patch" ] || {
+        echo "ERROR: missing runtime patch: $patch"
+        exit 1
+    }
     apply_one system/core "$patch" || exit 1
 done
 
 echo
-echo "===== BOOTABLE/RECOVERY INCREMENTAL FIXES ====="
-for patch in "$PATCH_ROOT"/patches/bootable-recovery/000*.patch; do
-    [ -f "$patch" ] || continue
+echo "===== BOOTABLE/RECOVERY RUNTIME FIXES ====="
+for patch in     "$PATCH_ROOT/patches/bootable-recovery/0002-recovery-fix-broken-legacy-fde-decrypt-watchdog.patch"     "$PATCH_ROOT/patches/bootable-recovery/0003-recovery-fix-rodin-adb-sideload-and-ab-ota.patch"; do
+    [ -f "$patch" ] || {
+        echo "ERROR: missing runtime patch: $patch"
+        exit 1
+    }
     apply_one bootable/recovery "$patch" || exit 1
 done
 

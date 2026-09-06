@@ -76,7 +76,7 @@ check_sha256 "${DEVICE_DIR}/patches/build-make/rodin-complete.patch" 91f01d03733
 check_sha256 "${DEVICE_DIR}/patches/bootable-recovery/rodin-complete.patch" 79ac7f1f769788b048ce5648a9bc94b8870cc1aa18da2436d546db2cdd433da5
 check_sha256 "${DEVICE_DIR}/patches/hardware-interfaces/rodin-fastbootd-bootcontrol-nonblocking.patch" e10f789766f359d5d4b91d2fa7ee8418d5c39694f7c914d5cc02c6aa533755b8
 check_sha256 "${DEVICE_DIR}/patches/system-core/rodin-fastbootd-optional-hals-nonblocking.patch" 740b10ad8cae477e8d387406b61594db869f83ab3fe0a15af46ec4ca6fc655e6
-check_sha256 "${DEVICE_DIR}/manifests/device-blobs.sha256" 31a8dcf9d81db9262fc3d8d72bb7561391c1ad33623bfd0a6af4165d3ea7f532
+check_sha256 "${DEVICE_DIR}/manifests/device-blobs.sha256" d087e202e2e6f264cec1779203bc4250c2ae7669de4bc1cef09ede25751faa25
 
 if [[ "${RODIN_ALLOW_UNPINNED_SOURCE:-0}" != "1" ]]; then
     filtered_manifest="$(mktemp "${TMPDIR:-/tmp}/rodin-pinned-manifest.XXXXXX.xml")"
@@ -117,7 +117,7 @@ PYXML
     rm -f "${filtered_manifest}"
 
     check_revision "${TOP_DIR}/bootable/recovery" \
-        73c82389541f3f79e9562ed0a278f604bedff920 \
+        15587c4fe7fbfff2825ec7ba8754066949060e15 \
         "patched bootable/recovery"
 
     check_revision "${TOP_DIR}/hardware/interfaces" \
@@ -125,7 +125,7 @@ PYXML
         "patched hardware/interfaces"
 
     check_revision "${TOP_DIR}/system/core" \
-        d4add349bc23456cd137d73b1acbcd789aaa5ed0 \
+        f16d1d3fdd463571601dd01d526643cd0230aa43 \
         "patched system/core"
 
     check_revision "${TOP_DIR}/build/make" \
