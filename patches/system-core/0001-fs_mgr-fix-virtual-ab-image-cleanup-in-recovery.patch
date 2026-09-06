@@ -1,0 +1,135 @@
+From 8852c2902a48a4e9a5d105da13de75ce2e9aaee7 Mon Sep 17 00:00:00 2001
+From: NEESCHAL <231459343+NEESCHAL-3@users.noreply.github.com>
+Date: Sat, 5 Sep 2026 14:52:58 +0000
+Subject: [PATCH] fs_mgr: fix Virtual A/B image cleanup in recovery
+
+---
+ fs_mgr/libfiemap/binder.cpp                   |  5 ++++
+ fs_mgr/libfiemap/image_manager.cpp            | 24 +++++++++++++++++++
+ .../include/libfiemap/image_manager.h         |  5 ++++
+ fs_mgr/libsnapshot/snapshot.cpp               | 21 ++++++++++++----
+ 4 files changed, 50 insertions(+), 5 deletions(-)
+
+diff --git a/fs_mgr/libfiemap/binder.cpp b/fs_mgr/libfiemap/binder.cpp
+index 439aac969..6e26475cd 100644
+--- a/fs_mgr/libfiemap/binder.cpp
++++ b/fs_mgr/libfiemap/binder.cpp
+@@ -62,6 +62,7 @@ class ImageManagerBinder final : public IImageManager {
+                                   std::string* dev) override;
+     FiemapStatus ZeroFillNewImage(const std::string& name, uint64_t bytes) override;
+     bool RemoveAllImages() override;
++    bool DisableAllImages() override;
+     bool DisableImage(const std::string& name) override;
+     bool RemoveDisabledImages() override;
+     bool GetMappedImageDevice(const std::string& name, std::string* device) override;
+@@ -195,6 +196,10 @@ bool ImageManagerBinder::RemoveAllImages() {
+     return true;
+ }
+ 
++bool ImageManagerBinder::DisableAllImages() {
++    return true;
++}
++
+ bool ImageManagerBinder::DisableImage(const std::string& name) {
+     auto status = manager_->disableImage(name);
+     if (!status.isOk()) {
+diff --git a/fs_mgr/libfiemap/image_manager.cpp b/fs_mgr/libfiemap/image_manager.cpp
+index 774f4e4f6..51cc12b71 100644
+--- a/fs_mgr/libfiemap/image_manager.cpp
++++ b/fs_mgr/libfiemap/image_manager.cpp
+@@ -659,6 +659,23 @@ bool ImageManager::RemoveAllImages() {
+     return ok && RemoveAllMetadata(metadata_dir_);
+ }
+ 
++bool ImageManager::DisableAllImages() {
++    if (!MetadataExists(metadata_dir_)) {
++        return true;
++    }
++    auto metadata = OpenMetadata(metadata_dir_);
++    if (!metadata) {
++        return false;
++    }
++
++    bool ok = true;
++    for (const auto& partition : metadata->partitions) {
++        auto partition_name = GetPartitionName(partition);
++        ok &= DisableImage(partition_name);
++    }
++    return ok;
++}
++
+ bool ImageManager::Validate() {
+     auto metadata = OpenMetadata(metadata_dir_);
+     if (!metadata) {
+@@ -688,6 +705,13 @@ bool ImageManager::DisableImage(const std::string& name) {
+ }
+ 
+ bool ImageManager::RemoveDisabledImages() {
++#if defined(__ANDROID_RECOVERY__)
++    // Disabled /data-backed images are intentionally deferred in recovery.
++    // Normal Android boot will remove them when /data is safely available.
++    LOG(INFO) << "Deferring disabled image cleanup until normal boot";
++    return true;
++#endif
++
+     if (!MetadataExists(metadata_dir_)) {
+         return true;
+     }
+diff --git a/fs_mgr/libfiemap/include/libfiemap/image_manager.h b/fs_mgr/libfiemap/include/libfiemap/image_manager.h
+index 0619c96a3..c3e661269 100644
+--- a/fs_mgr/libfiemap/include/libfiemap/image_manager.h
++++ b/fs_mgr/libfiemap/include/libfiemap/image_manager.h
+@@ -127,6 +127,10 @@ class IImageManager {
+     // Find and remove all images and metadata for this manager.
+     virtual bool RemoveAllImages() = 0;
+ 
++    // Find and mark all images for deletion upon next reboot.
++    // Used by recovery when /data-backed images cannot be deleted directly.
++    virtual bool DisableAllImages() = 0;
++
+     virtual bool UnmapImageIfExists(const std::string& name);
+ 
+     // Returns whether DisableImage() was called.
+@@ -158,6 +162,7 @@ class ImageManager final : public IImageManager {
+     bool MapImageWithDeviceMapper(const IPartitionOpener& opener, const std::string& name,
+                                   std::string* dev) override;
+     bool RemoveAllImages() override;
++    bool DisableAllImages() override;
+     bool DisableImage(const std::string& name) override;
+     bool RemoveDisabledImages() override;
+     bool GetMappedImageDevice(const std::string& name, std::string* device) override;
+diff --git a/fs_mgr/libsnapshot/snapshot.cpp b/fs_mgr/libsnapshot/snapshot.cpp
+index da6be2100..3df0594f4 100644
+--- a/fs_mgr/libsnapshot/snapshot.cpp
++++ b/fs_mgr/libsnapshot/snapshot.cpp
+@@ -2007,11 +2007,22 @@ bool SnapshotManager::RemoveAllSnapshots(LockedFile* lock) {
+     }
+ 
+     if (ok || !has_mapped_cow_images) {
+-        // Delete any image artifacts as a precaution, in case an update is
+-        // being cancelled due to some corrupted state in an lp_metadata file.
+-        // Note that we do not do this if some cow images are still mapped,
+-        // since we must not remove backing storage if it's in use.
+-        if (!EnsureImageManager() || !images_->RemoveAllImages()) {
++        if (!EnsureImageManager()) {
++            return false;
++        }
++
++        if (device_->IsRecovery()) {
++            // Recovery cannot delete /data-backed snapshot images safely.
++            // Disable them so they are cleaned up after reboot instead.
++            if (!images_->DisableAllImages()) {
++                LOG(ERROR) << "Could not remove all snapshot artifacts in recovery";
++                return false;
++            }
++        } else if (!images_->RemoveAllImages()) {
++            // Delete any image artifacts as a precaution, in case an update is
++            // being cancelled due to some corrupted state in an lp_metadata file.
++            // Note that we do not do this if some cow images are still mapped,
++            // since we must not remove backing storage if it's in use.
+             LOG(ERROR) << "Could not remove all snapshot artifacts";
+             return false;
+         }
+-- 
+2.43.0
+

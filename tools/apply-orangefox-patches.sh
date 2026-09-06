@@ -64,3 +64,7 @@ fi
 
 "${DEVICE_DIR}/tools/verify-build-inputs.sh" "${TOP_DIR}"
 echo "OrangeFox rodin source patches and device inputs are ready"
+
+# NEES_RUNTIME_FIXES
+NEES_PATCH_TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+"$NEES_PATCH_TOOLS_DIR/apply-runtime-fixes.sh" "${ANDROID_BUILD_TOP:-$(pwd)}" || exit 1

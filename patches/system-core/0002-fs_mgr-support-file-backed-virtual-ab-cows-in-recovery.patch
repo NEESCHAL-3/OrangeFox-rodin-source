@@ -1,0 +1,92 @@
+From f16d1d3fdd463571601dd01d526643cd0230aa43 Mon Sep 17 00:00:00 2001
+From: NEESCHAL <231459343+NEESCHAL-3@users.noreply.github.com>
+Date: Sun, 6 Sep 2026 02:12:16 +0000
+Subject: [PATCH] fs_mgr: support file-backed Virtual A/B COWs in recovery
+
+---
+ fs_mgr/libfiemap/image_manager.cpp | 45 ++++++++++++++++++++++++++++++
+ fs_mgr/libsnapshot/snapshot.cpp    | 12 +++++++-
+ 2 files changed, 56 insertions(+), 1 deletion(-)
+
+diff --git a/fs_mgr/libfiemap/image_manager.cpp b/fs_mgr/libfiemap/image_manager.cpp
+index 51cc12b71..697ce0df0 100644
+--- a/fs_mgr/libfiemap/image_manager.cpp
++++ b/fs_mgr/libfiemap/image_manager.cpp
+@@ -558,6 +558,51 @@ bool ImageManager::MapImageDevice(const std::string& name,
+     }
+ #endif
+ 
++#if defined(__ANDROID_RECOVERY__)
++    /*
++     * OrangeFox can mount /data directly on the physical userdata block
++     * device. In that configuration, trying to build a writable dm-linear
++     * image over fiemap extents from the already-mounted physical device can
++     * fail in the kernel with:
++     *
++     *   device-mapper: linear: Device lookup failed (-EBUSY)
++     *
++     * If the backing filesystem does not have an intermediate dm layer,
++     * map the image file through loop instead. This is generic for every
++     * /data-backed image and is not partition-specific.
++     */
++    if (device_info_.is_recovery.has_value() && device_info_.is_recovery.value()) {
++        std::string recovery_block_device;
++        bool recovery_uses_dm = false;
++
++        if (!FiemapWriter::GetBlockDeviceForFile(
++                    image_header, &recovery_block_device, &recovery_uses_dm)) {
++            LOG(ERROR) << "Recovery: could not determine backing device for " << image_header;
++            return false;
++        }
++
++        if (!recovery_uses_dm) {
++            LOG(INFO) << "Recovery: mapping backing image " << name
++                      << " through loop device because "
++                      << recovery_block_device
++                      << " is mounted without a device-mapper layer";
++
++            if (!MapWithLoopDevice(name, timeout_ms, path)) {
++                LOG(ERROR) << "Recovery: failed to loop-map backing image " << name;
++                return false;
++            }
++
++            auto prop_name = GetStatusPropertyName(name);
++            if (!android::base::SetProperty(prop_name, *path)) {
++                UnmapImageDevice(name, true);
++                return false;
++            }
++
++            return true;
++        }
++    }
++#endif
++
+     if (!MapWithDmLinear(*partition_opener_.get(), name, timeout_ms, path)) {
+         return false;
+     }
+diff --git a/fs_mgr/libsnapshot/snapshot.cpp b/fs_mgr/libsnapshot/snapshot.cpp
+index 3df0594f4..c830a0c0e 100644
+--- a/fs_mgr/libsnapshot/snapshot.cpp
++++ b/fs_mgr/libsnapshot/snapshot.cpp
+@@ -683,7 +683,17 @@ std::optional<std::string> SnapshotManager::MapCowImage(
+ 
+     bool ok;
+     std::string cow_dev;
+-    if (device_->IsRecovery() || device_->IsFirstStageInit()) {
++
++    /*
++     * First-stage init cannot rely on the backing filesystem being mounted,
++     * so it must map fiemap extents directly with device-mapper.
++     *
++     * Recovery is different: OrangeFox may have /data mounted directly on
++     * the physical userdata device. Recovery must therefore use the normal
++     * ImageManager mapping path, which can select a loop device when stacking
++     * dm-linear on the mounted backing device is unsafe.
++     */
++    if (device_->IsFirstStageInit()) {
+         const auto& opener = device_->GetPartitionOpener();
+         ok = images_->MapImageWithDeviceMapper(opener, cow_image_name, &cow_dev);
+     } else {
+-- 
+2.43.0
+

@@ -1,0 +1,59 @@
+From 7de2b5e1ddd0a90914e29268c23a2f40418eaec7 Mon Sep 17 00:00:00 2001
+From: NEESCHAL <231459343+NEESCHAL-3@users.noreply.github.com>
+Date: Sun, 6 Sep 2026 02:12:16 +0000
+Subject: [PATCH] recovery: fix broken legacy FDE decrypt watchdog
+
+---
+ partitionmanager.cpp | 35 +++++++++++++++++------------------
+ 1 file changed, 17 insertions(+), 18 deletions(-)
+
+diff --git a/partitionmanager.cpp b/partitionmanager.cpp
+index 08bd18ed..7a67df59 100755
+--- a/partitionmanager.cpp
++++ b/partitionmanager.cpp
+@@ -2410,25 +2410,24 @@ int TWPartitionManager::Decrypt_Device(string Password, int user_id) {
+ 		return 0;
+ 	}
+ 
++	/*
++	 * NEES/rodin:
++	 * Legacy FDE password verification is disabled in this tree.
++	 *
++	 * The old code still forked a child even though both
++	 * cryptfs_check_passwd() and exit() were commented out.  The child
++	 * therefore continued running and the parent waited for 30 seconds
++	 * before Wait_For_Child_Timeout() killed it.
++	 *
++	 * That delayed decrypt watchdog can fire while an ADB sideload OTA is
++	 * active, causing partition/UI reinitialization and tearing down
++	 * FunctionFS underneath update_engine.
++	 *
++	 * Since this disabled FDE path cannot perform a password check anyway,
++	 * fail it immediately instead of spawning a child that cannot finish.
++	 */
+ 	int pwret = -1;
+-	pid_t pid = fork();
+-	if (pid < 0) {
+-		LOGERR("fork failed\n");
+-		return -1;
+-	} else if (pid == 0) {
+-		// Child process
+-		char cPassword[255];
+-		strcpy(cPassword, Password.c_str());
+-		//int ret = cryptfs_check_passwd(cPassword);
+-		//exit(ret);
+-	} else {
+-		// Parent
+-		int status;
+-		if (TWFunc::Wait_For_Child_Timeout(pid, &status, "Decrypt", 30))
+-			pwret = -1;
+-		else
+-			pwret = WEXITSTATUS(status) ? -1 : 0;
+-	}
++	LOGINFO("Legacy FDE password verification is disabled; skipping decrypt child.\n");
+ 
+   // Unmount any partitions that were needed for decrypt
+   for (iter = Partitions.begin(); iter != Partitions.end(); iter++)
+-- 
+2.43.0
+

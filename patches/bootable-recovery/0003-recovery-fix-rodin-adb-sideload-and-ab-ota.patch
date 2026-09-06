@@ -1,0 +1,498 @@
+From 15587c4fe7fbfff2825ec7ba8754066949060e15 Mon Sep 17 00:00:00 2001
+From: NEESCHAL <231459343+NEESCHAL-3@users.noreply.github.com>
+Date: Sun, 6 Sep 2026 02:12:16 +0000
+Subject: [PATCH] recovery: fix rodin ADB sideload and A/B OTA installation
+
+---
+ gui/action.cpp              |  49 +++++---
+ twrpinstall/adb_install.cpp |  57 ++++++++-
+ twrpinstall/package.cpp     |   2 +-
+ twrpinstall/twinstall.cpp   | 243 ++++++++++++++++++++++++++++++++++--
+ 4 files changed, 314 insertions(+), 37 deletions(-)
+
+diff --git a/gui/action.cpp b/gui/action.cpp
+index 293dd164..48648692 100755
+--- a/gui/action.cpp
++++ b/gui/action.cpp
+@@ -2162,26 +2162,39 @@ int GUIAction::adbsideload(std::string arg __unused)
+ 
+ int GUIAction::adbsideloadcancel(std::string arg __unused)
+ {
+-	struct stat st;
+-	DataManager::SetValue("tw_has_cancel", 0); // Remove cancel button from gui
++	DataManager::SetValue("tw_has_cancel", 0);
++	DataManager::SetValue("tw_cancel_action", "");
++
+ 	gui_msg("cancel_sideload=Cancelling ADB sideload...");
+-	LOGINFO("Signaling child sideload process to exit.\n");
+-	// Calling stat() on this magic filename signals the minadbd
+-	// subprocess to shut down.
+-	stat(FUSE_SIDELOAD_HOST_EXIT_PATHNAME, &st);
+-	sideload_child_pid = GetMiniAdbdPid();
+-	if (!sideload_child_pid) {
+-		LOGERR("Unable to get child ID\n");
+-		return 0;
++
++	/*
++	 * NEES:
++	 * Never touch /sideload/exit from the GUI cancel thread.
++	 * That path is FUSE-backed and stat() itself can block.
++	 *
++	 * minadbd owns the peer end of the recovery socket. Killing
++	 * minadbd closes that socket, wakes the listener thread and lets
++	 * twrp_sideload() perform its normal join/waitpid/USB cleanup.
++	 */
++	pid_t pid = GetMiniAdbdPid();
++
++	/*
++	 * Release the action page immediately. The sideload worker will
++	 * finish its cleanup in the background.
++	 */
++	DataManager::SetValue("tw_page_done", "1");
++
++	if (pid > 0) {
++		LOGINFO("Cancelling ADB sideload: terminating minadbd pid %d.\n", pid);
++
++		if (kill(pid, SIGTERM) != 0) {
++			LOGERR("Failed to SIGTERM minadbd pid %d: %s\n",
++			       pid, strerror(errno));
++		}
++	} else {
++		LOGINFO("Cancelling ADB sideload: minadbd is already gone.\n");
+ 	}
+-	::sleep(1);
+-	LOGINFO("Killing child sideload process.\n");
+-	kill(sideload_child_pid, SIGTERM);
+-	int status;
+-	LOGINFO("Waiting for child sideload process to exit.\n");
+-	waitpid(sideload_child_pid, &status, 0);
+-	sideload_child_pid = 0;
+-	DataManager::SetValue("tw_page_done", "1"); // For OpenRecoveryScript support
++
+ 	return 0;
+ }
+ 
+diff --git a/twrpinstall/adb_install.cpp b/twrpinstall/adb_install.cpp
+index d9a517f0..ad72c281 100755
+--- a/twrpinstall/adb_install.cpp
++++ b/twrpinstall/adb_install.cpp
+@@ -52,21 +52,52 @@
+ #include "recovery_ui/device.h"
+ #include "recovery_ui/ui.h"
+ #include "orangefox.hpp"
++#include <chrono>
++#include <fstream>
+ 
+ // A CommandFunction returns a pair of (result, should_continue), which indicates the command
+ // execution result and whether it should proceed to the next iteration. The execution result will
+ // always be sent to the minadbd side.
+ using CommandFunction = std::function<std::pair<bool, bool>()>;
+ 
++static void NeesSideloadTrace(const std::string& msg, bool truncate = false) {
++  auto mode = truncate ? std::ios::trunc : std::ios::app;
++
++  std::ofstream tmp("/tmp/nees-sideload-stage.log", mode);
++  if (tmp.is_open()) {
++    tmp << msg << '\n';
++    tmp.flush();
++  }
++
++  std::ofstream cache("/cache/recovery/nees-sideload-stage.log", mode);
++  if (cache.is_open()) {
++    cache << msg << '\n';
++    cache.flush();
++  }
++}
++
++
+ pid_t child;
+ 
+ pid_t GetMiniAdbdPid() {
+   return child;
+ }
+ 
+-static bool SetUsbConfig(const std::string& state) {
++static bool SetUsbConfig(
++    const std::string& state,
++    std::chrono::milliseconds timeout = std::chrono::milliseconds::max()) {
+   android::base::SetProperty("sys.usb.config", state);
+-  return android::base::WaitForProperty("sys.usb.state", state);
++
++  bool ok = android::base::WaitForProperty(
++      "sys.usb.state", state, timeout);
++
++  if (!ok) {
++    LOG(ERROR) << "Timed out waiting for sys.usb.state=" << state
++               << " current="
++               << android::base::GetProperty("sys.usb.state", "<unset>");
++  }
++
++  return ok;
+ }
+ 
+ // Parses the minadbd command in |message|; returns MinadbdCommand::kError upon errors.
+@@ -101,6 +132,8 @@ static bool WriteStatusToFd(MinadbdCommandStatus status, int fd) {
+ // Installs the package from FUSE. Returns the installation result and whether it should continue
+ // waiting for new commands.
+ static auto AdbInstallPackageHandler(int* result) {
++  NeesSideloadTrace("NEES_HANDLER_ENTER", true);
++
+   // How long (in seconds) we wait for the package path to be ready. It doesn't need to be too long
+   // because the minadbd service has already issued an install command. FUSE_SIDELOAD_HOST_PATHNAME
+   // will start to exist once the host connects and starts serving a package. Poll for its
+@@ -121,7 +154,9 @@ static auto AdbInstallPackageHandler(int* result) {
+       }
+     }
+     int dummy = 0;
++    NeesSideloadTrace("NEES_TWINSTALL_CALL");
+     *result = TWinstall_zip(FUSE_SIDELOAD_HOST_PATHNAME, &dummy);
++    NeesSideloadTrace("NEES_TWINSTALL_RETURN");
+     Fox_Post_Zip_Install(*result);
+     break;
+   }
+@@ -328,6 +363,9 @@ static void CreateMinadbdServiceAndExecuteCommands(
+ 
+   int status;
+   waitpid(child, &status, 0);
++
++  // minadbd has been reaped. Never expose a stale PID to the GUI.
++  child = 0;
+   if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+     if (WEXITSTATUS(status) == MinadbdErrorCode::kMinadbdAdbVersionError) {
+       LOG(ERROR) << "\nYou need adb 1.0.32 or newer to sideload\nto this device.\n";
+@@ -369,13 +407,20 @@ static void CreateMinadbdServiceAndExecuteCommands(
+ 
+   // Clean up before switching to the older state, for example setting the state
+   // to none sets sys/class/android_usb/android0/enable to 0.
+-  if (!SetUsbConfig("none")) {
+-    LOG(ERROR) << "Failed to clear USB config";
++  /*
++   * NEES/rodin:
++   * Post-sideload USB restoration must never block recovery forever.
++   */
++  constexpr auto kSideloadCleanupUsbTimeout =
++      std::chrono::milliseconds(3000);
++
++  if (!SetUsbConfig("none", kSideloadCleanupUsbTimeout)) {
++    LOG(ERROR) << "Failed to clear USB config after sideload";
+   }
+ 
+   if (usb_state != "none") {
+-    if (!SetUsbConfig(usb_state)) {
+-      LOG(ERROR) << "Failed to set USB config to " << usb_state;
++    if (!SetUsbConfig(usb_state, kSideloadCleanupUsbTimeout)) {
++      LOG(ERROR) << "Failed to restore USB config to " << usb_state;
+     }
+   }
+ 
+diff --git a/twrpinstall/package.cpp b/twrpinstall/package.cpp
+index ba1d5df6..5a61ae64 100755
+--- a/twrpinstall/package.cpp
++++ b/twrpinstall/package.cpp
+@@ -248,7 +248,7 @@ ZipArchiveHandle FilePackage::GetZipArchiveHandle() {
+     return zip_handle_;
+   }
+ 
+-  if (auto err = OpenArchiveFd(fd_.get(), path_.c_str(), &zip_handle_); err != 0) {
++  if (auto err = OpenArchiveFd(fd_.get(), path_.c_str(), &zip_handle_, false); err != 0) {
+     LOG(ERROR) << "Can't open package" << path_ << " : " << ErrorCodeString(err);
+     return nullptr;
+   }
+diff --git a/twrpinstall/twinstall.cpp b/twrpinstall/twinstall.cpp
+index 18b2cbe9..02d5f4a1 100755
+--- a/twrpinstall/twinstall.cpp
++++ b/twrpinstall/twinstall.cpp
+@@ -203,17 +203,193 @@ static int Run_Update_Binary(const char *path, int* wipe_cache, zip_type ztype,
+     if (ztype == UPDATE_BINARY_ZIP_TYPE) {
+ 		ret_val = update_binary_command(path, 0, pipe_fd[1], &args);
+     } else if (ztype == AB_OTA_ZIP_TYPE) {
+-		// NEES: Virtual A/B update_engine needs the real Metadata filesystem.
+-		// Without it, /metadata/ota snapshot state is invisible and inactive
+-		// logical partition mapping can fail with kInstallDeviceOpenError.
+-		if (!PartitionManager.Mount_By_Path("/metadata", true)) {
+-			LOGERR("A/B OTA: failed to mount /metadata before update_engine_sideload.\n");
+-			ret_val = INSTALL_ERROR;
+-		} else {
+-			LOGINFO("A/B OTA: /metadata mounted before update_engine_sideload.\n");
+-			ret_val = abupdate_binary_command(path, 0, pipe_fd[1], &args);
+-		}
+-	} else {
++                /*
++                 * RODIN / Virtual A/B permanent preparation.
++                 *
++                 * Format Data or metadata formatting can remove Android's
++                 * OTA snapshot/COW workspace. Recovery must recreate that
++                 * workspace before EVERY update_engine_sideload run.
++                 *
++                 * Existing snapshot state is never deleted here.
++                 */
++
++                bool vab_ready = true;
++                std::string vab_result;
++
++                /*
++                 * Real metadata filesystem is mandatory for snapshots.
++                 */
++                if (!PartitionManager.Mount_By_Path("/metadata", true)) {
++                        LOGERR(
++                                "A/B OTA: unable to mount /metadata.\n");
++                        vab_ready = false;
++                }
++
++                /*
++                 * COW backing files may be created below /data/gsi/ota.
++                 */
++                if (vab_ready &&
++                    !PartitionManager.Mount_By_Path("/data", true)) {
++
++                        LOGERR(
++                                "A/B OTA: unable to mount /data.\n");
++                        vab_ready = false;
++                }
++
++                /*
++                 * Hard mount verification.
++                 *
++                 * Do not accept a successful-looking Mount_By_Path() call
++                 * while /metadata is still only the empty recovery rootfs
++                 * mountpoint.
++                 */
++                if (vab_ready) {
++                        if (!PartitionManager.Is_Mounted_By_Path("/metadata")) {
++                                LOGERR(
++                                        "A/B OTA: /metadata is not actually mounted.\n");
++                                vab_ready = false;
++                        }
++
++                        if (!PartitionManager.Is_Mounted_By_Path("/data")) {
++                                LOGERR(
++                                        "A/B OTA: /data is not actually mounted.\n");
++                                vab_ready = false;
++                        }
++                }
++
++                if (vab_ready) {
++                        /*
++                         * Recreate only missing runtime directories.
++                         *
++                         * Never remove /metadata/ota or /data/gsi because
++                         * they may contain valid snapshot state.
++                         */
++                        const std::string prepare_vab =
++                                "mkdir -p "
++                                "/metadata/ota/snapshots "
++                                "/metadata/gsi/ota "
++                                "/data/gsi/ota"
++                                " && chown 0:1000 "
++                                "/metadata/ota "
++                                "/metadata/ota/snapshots "
++                                "/metadata/gsi "
++                                "/metadata/gsi/ota"
++                                " && chmod 0750 "
++                                "/metadata/ota "
++                                "/metadata/ota/snapshots"
++                                " && chmod 0771 "
++                                "/metadata/gsi "
++                                "/metadata/gsi/ota"
++                                " && chown 0:0 "
++                                "/data/gsi "
++                                "/data/gsi/ota"
++                                " && chmod 0700 "
++                                "/data/gsi "
++                                "/data/gsi/ota";
++
++                        if (TWFunc::Exec_Cmd(
++                                    prepare_vab,
++                                    vab_result) != 0) {
++
++                                LOGERR(
++                                        "A/B OTA: failed to prepare Virtual A/B "
++                                        "workspace: %s\n",
++                                        vab_result.c_str());
++
++                                vab_ready = false;
++                        }
++                }
++
++                /*
++                 * Restore Android SELinux labels when restorecon is
++                 * available in this recovery. mkdir/chown/chmod above
++                 * remains the minimum required fallback.
++                 */
++                if (vab_ready) {
++                        const std::string restore_labels =
++                                "restorecon -RF "
++                                "/metadata/ota "
++                                "/metadata/gsi "
++                                "/data/gsi";
++
++                        if (TWFunc::Exec_Cmd(
++                                    restore_labels,
++                                    vab_result) != 0) {
++
++                                LOGERR(
++                                        "A/B OTA: restorecon failed: %s\n",
++                                        vab_result.c_str());
++
++                                vab_ready = false;
++                        }
++                }
++
++                /*
++                 * Final filesystem-level verification before update_engine.
++                 */
++                if (vab_ready) {
++                        const std::string verify_vab =
++                                "test -d /metadata/ota "
++                                "&& test -d /metadata/ota/snapshots "
++                                "&& test -d /metadata/gsi "
++                                "&& test -d /metadata/gsi/ota "
++                                "&& test -d /data/gsi "
++                                "&& test -d /data/gsi/ota "
++                                "&& test -w /metadata/ota "
++                                "&& test -w /metadata/ota/snapshots "
++                                "&& test -w /data/gsi/ota";
++
++                        if (TWFunc::Exec_Cmd(
++                                    verify_vab,
++                                    vab_result) != 0) {
++
++                                LOGERR(
++                                        "A/B OTA: Virtual A/B workspace "
++                                        "verification failed.\n");
++
++                                vab_ready = false;
++                        }
++                }
++
++                if (!vab_ready) {
++                        gui_print_color(
++                                "error",
++                                "Unable to prepare Virtual A/B storage. "
++                                "ROM installation was not started.\n");
++
++                        ret_val = INSTALL_ERROR;
++                } else {
++                        sync();
++
++                        gui_print_color(
++                                "warning",
++                                "[ Virtual A/B Ready ]\n");
++
++                        gui_print_color(
++                                "green",
++                                "OTA workspace prepared successfully.\n");
++
++                        gui_print_color(
++                                "warning",
++                                "[ Installing ROM ]\n");
++
++                        gui_print_color(
++                                "warning",
++                                "Applying payload to the inactive slot...\n");
++
++                        LOGINFO(
++                                "A/B OTA: workspace ready: "
++                                "/metadata/ota/snapshots + "
++                                "/metadata/gsi/ota + "
++                                "/data/gsi/ota.\n");
++
++                        ret_val = abupdate_binary_command(
++                                path,
++                                0,
++                                pipe_fd[1],
++                                &args);
++                }
++        } else {
+ 		LOGERR("Unknown zip type %i\n", ztype);
+ 		ret_val = INSTALL_CORRUPT;
+ 	}
+@@ -826,8 +1002,25 @@ static bool Rodin_Auto_Metadata_FS(bool ab_ota_install)
+ }
+ 
+ 
++
++static void NeesZipTrace(const std::string& msg) {
++  std::ofstream tmp("/tmp/nees-sideload-stage.log", std::ios::app);
++  if (tmp.is_open()) {
++    tmp << msg << '\n';
++    tmp.flush();
++  }
++
++  std::ofstream cache("/cache/recovery/nees-sideload-stage.log", std::ios::app);
++  if (cache.is_open()) {
++    cache << msg << '\n';
++    cache.flush();
++  }
++}
++
+ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
+ {
++	NeesZipTrace("NEES_TWINSTALL_ENTER path=" + std::string(path ? path : "<null>"));
++
+   int ret_val, zip_verify = 1, unmount_system = 1, reflashtwrp = 0, unmount_vendor = 1;
+   bool run_rom_scripts = false;
+   bool rodin_ab_ota_install = false;
+@@ -872,10 +1065,32 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
+ 
+   DataManager::SetProgress(0);
+ 
+-	auto package = Package::CreateMemoryPackage(path);
++	/*
++	 * NEES/rodin:
++	 * /sideload/package.zip is backed by adb FUSE and must remain
++	 * file-backed while minadbd serves blocks from the host.
++	 *
++	 * Do not mmap the entire sideload package with MemoryPackage.
++	 * Normal local ZIP installs keep the existing memory-backed path.
++	 */
++	NeesZipTrace("NEES_PACKAGE_OPEN_BEGIN");
++	decltype(Package::CreateMemoryPackage(path)) package;
++
++	if (strlen(path) >= 9 && strncmp(path, "/sideload", 9) == 0) {
++		LOGINFO("ADB sideload: using file-backed package reader.\n");
++		package = Package::CreateFilePackage(
++			path,
++			std::bind(&DataManager::SetProgress, std::placeholders::_1));
++	} else {
++		package = Package::CreateMemoryPackage(path);
++	}
++
+ 	if (!package) {
++		NeesZipTrace("NEES_PACKAGE_OPEN_FAIL");
++		LOGERR("Failed to open package '%s'\n", path);
+ 		return INSTALL_CORRUPT;
+ 	}
++	NeesZipTrace("NEES_PACKAGE_OPEN_OK");
+ 
+ 	if (zip_verify) {
+ 		gui_msg("verify_zip_sig=Verifying zip signature...");
+@@ -901,6 +1116,7 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
+     }
+ 
+     ZipArchiveHandle Zip = package->GetZipArchiveHandle();
++    NeesZipTrace(Zip ? "NEES_ZIP_HANDLE_OK" : "NEES_ZIP_HANDLE_FAIL");
+     if (!Zip) {
+       set_miui_install_status(OTA_CORRUPT, true);
+       gui_err("zip_corrupt=Zip file is corrupt!");
+@@ -977,6 +1193,7 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
+ 		std::string ab_binary_name(AB_OTA);
+ 		ZipEntry64 ab_binary_entry;
+ 		if (FindEntry(Zip, ab_binary_name, &ab_binary_entry) == 0) {
++			NeesZipTrace("NEES_AB_DETECTED");
+ 			LOGINFO("AB zip\n");
+ 			gui_msg(Msg(msg::kHighlight, "flash_ab_inactive=Flashing A/B zip to inactive slot: {1}")(PartitionManager.Get_Active_Slot_Display()=="A"?"B":"A"));
+ 			// We need this so backuptool can do its magic
+@@ -999,7 +1216,9 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
+ 			rodin_ab_ota_install = true;
+ 
+ 
++			NeesZipTrace("NEES_RUN_UPDATE_BINARY_BEGIN");
+ 			ret_val = Run_Update_Binary(path, wipe_cache, AB_OTA_ZIP_TYPE, &reflashtwrp);
++			NeesZipTrace("NEES_RUN_UPDATE_BINARY_RETURN=" + std::to_string(ret_val));
+ 
+ 			DataManager::SetValue(FOX_ZIP_INSTALLER_CODE, 1); // mark as custom ROM install
+ 
+-- 
+2.43.0
+

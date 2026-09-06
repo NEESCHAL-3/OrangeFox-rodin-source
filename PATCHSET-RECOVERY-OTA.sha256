@@ -1,0 +1,4 @@
+1cd31774a851ab84b4a75fb7aad3360ed7d394493bcad167a7790ed703186344  patches/system-core/0001-fs_mgr-fix-virtual-ab-image-cleanup-in-recovery.patch
+fb110deef6f615df03b08b07855de05f47e737dac9e90337d058ca731ac30739  patches/system-core/0002-fs_mgr-support-file-backed-virtual-ab-cows-in-recovery.patch
+61d6352d2814051eb3eb31ca472b8a3e4159937296c2f78964152593dd413262  patches/bootable-recovery/0002-recovery-fix-broken-legacy-fde-decrypt-watchdog.patch
+a7a7d012c335b0306420b1201839f048316ba79d1d5e391fb28de1d520189bfa  patches/bootable-recovery/0003-recovery-fix-rodin-adb-sideload-and-ab-ota.patch
