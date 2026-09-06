@@ -25,6 +25,9 @@ PRODUCT_OUT="${FOX}/out/target/product/rodin"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 FREEZE="$REPO/build-freezes/$STAMP"
 
+export ORANGEFOX_TOP="$FOX"
+export RODIN_TOP_DIR="$FOX"
+
 echo "============================================================"
 echo " RODIN ORANGEFOX — FINAL RELEASE BUILD"
 echo "============================================================"
