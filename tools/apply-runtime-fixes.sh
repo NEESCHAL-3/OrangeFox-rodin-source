@@ -35,7 +35,7 @@ done
 
 echo
 echo "===== BOOTABLE/RECOVERY RUNTIME FIXES ====="
-for patch in     "$PATCH_ROOT/patches/bootable-recovery/0002-recovery-fix-broken-legacy-fde-decrypt-watchdog.patch"     "$PATCH_ROOT/patches/bootable-recovery/0003-recovery-fix-rodin-adb-sideload-and-ab-ota.patch"; do
+for patch in     "$PATCH_ROOT/patches/bootable-recovery/0002-recovery-fix-broken-legacy-fde-decrypt-watchdog.patch"     "$PATCH_ROOT/patches/bootable-recovery/0003-recovery-fix-rodin-adb-sideload-and-ab-ota.patch"     "$PATCH_ROOT/patches/bootable-recovery/0004-recovery-use-rodin-calibrated-haptic-strength.patch"; do
     [ -f "$patch" ] || {
         echo "ERROR: missing runtime patch: $patch"
         exit 1

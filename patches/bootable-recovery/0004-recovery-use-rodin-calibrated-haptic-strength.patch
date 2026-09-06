@@ -1,0 +1,79 @@
+--- a/minuitwrp/events.cpp
++++ b/minuitwrp/events.cpp
+@@ -192,8 +192,31 @@
+         write_to_file(LEDS_HAPTICS_DURATION_FILE, tout);
+         write_to_file(LEDS_HAPTICS_ACTIVATE_FILE, "1");
+     } else if (std::ifstream(SIH_HAPTICS_ACTIVATE_FILE).good()) {
+-        write_to_file(SIH_HAPTICS_DURATION_FILE, tout);
++        int strength = timeout_ms;
++        if (strength < 1) strength = 1;
++        if (strength > 100) strength = 100;
++
++        // Rodin SIH6887 recovery strength range.
++        // 0x1e is the driver baseline; 0x80 is the highest
++        // gain verified successfully during real-device testing.
++        const int min_gain = 0x1e;
++        const int max_gain = 0x80;
++        const int gain =
++            min_gain + ((max_gain - min_gain) * strength + 50) / 100;
++
++        // Effect 7 is rodin's calibrated short granular haptic.
++        write_to_file(SIH_HAPTICS_ACTIVATE_FILE, "0");
++        write_to_file(
++            "/sys/bus/i2c/drivers/sih_haptic_688X/0-006b/effect_id", "7");
+         write_to_file(SIH_HAPTICS_ACTIVATE_FILE, "1");
++
++        // activate_store asynchronously restores the driver default gain.
++        // Real-device testing shows a 1 ms settle is sufficient before
++        // applying the requested strength.
++        usleep(1000);
++        write_to_file(
++            "/sys/bus/i2c/drivers/sih_haptic_688X/0-006b/gain",
++            std::to_string(gain));
+     } else {
+         write_to_file(VIBRATOR_TIMEOUT_FILE, tout);
+     }
+--- a/data.cpp
++++ b/data.cpp
+@@ -948,9 +948,9 @@
+   //[f/d]
+  
+ #ifndef TW_NO_HAPTICS
+-	mPersist.SetValue("tw_button_vibrate", "40");
+-	mPersist.SetValue("tw_keyboard_vibrate", "40");
+-	mPersist.SetValue("tw_action_vibrate", "160");
++	mPersist.SetValue("tw_button_vibrate", "75");
++	mPersist.SetValue("tw_keyboard_vibrate", "60");
++	mPersist.SetValue("tw_action_vibrate", "90");
+ 	mConst.SetValue("tw_disable_haptics", "0");
+ #else
+ 	LOGINFO("TW_NO_HAPTICS := true\n");
+--- a/gui/theme/portrait_hdpi/pages/settings.xml
++++ b/gui/theme/portrait_hdpi/pages/settings.xml
+@@ -592,7 +592,7 @@
+ 
+ 			<slidervalue>
+ 				<placement x="%slider_x%" y="%row1_3_y%" w="%slidervalue_w%"/>
+-				<data variable="tw_button_vibrate" min="0" max="300" showrange="0" showcurr="0" changeondrag="1"/>
++				<data variable="tw_button_vibrate" min="0" max="100" showrange="0" showcurr="0" changeondrag="1"/>
+ 			</slidervalue>
+ 
+ 			<text style="text_body1">
+@@ -609,7 +609,7 @@
+ 
+ 			<slidervalue>
+ 				<placement x="%slider_x%" y="%row3_1a_y%" w="%slidervalue_w%"/>
+-				<data variable="tw_keyboard_vibrate" min="0" max="300" showrange="0" showcurr="0" changeondrag="1"/>
++				<data variable="tw_keyboard_vibrate" min="0" max="100" showrange="0" showcurr="0" changeondrag="1"/>
+ 			</slidervalue>
+ 
+ 			<text style="text_body1">
+@@ -626,7 +626,7 @@
+ 
+ 			<slidervalue>
+ 				<placement x="%slider_x%" y="%row4_3_y%" w="%slidervalue_w%"/>
+-				<data variable="tw_action_vibrate" min="0" max="500" showrange="0" showcurr="0" changeondrag="1"/>
++				<data variable="tw_action_vibrate" min="0" max="100" showrange="0" showcurr="0" changeondrag="1"/>
+ 			</slidervalue>
+ 
+ 			<template name="gestures"/>
