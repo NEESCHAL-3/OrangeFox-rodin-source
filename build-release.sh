@@ -144,8 +144,12 @@ done
 
 echo "===== SAVE RELEASE HASHES ====="
 
-sha256sum "${images[@]}" \
-    > "$PRODUCT_OUT/RODIN-ORANGEFOX-SHA256SUMS.txt"
+(
+    cd "$PRODUCT_OUT"
+    for image in "${images[@]}"; do
+        sha256sum "$(basename -- "$image")"
+    done
+) > "$PRODUCT_OUT/RODIN-ORANGEFOX-SHA256SUMS.txt"
 
 cp -fp \
     "$PRODUCT_OUT/RODIN-ORANGEFOX-SHA256SUMS.txt" \
