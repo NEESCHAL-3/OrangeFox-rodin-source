@@ -152,6 +152,12 @@ Key references:
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [External patches](docs/PATCHES.md)
 
+## Credits and Acknowledgments
+
+- **[woshimaniubi8](https://github.com/woshimaniubi8):** Special thanks for source tree references, base recovery components, and the USB OTG DTB fix implementation.
+- **OrangeFox Recovery Project:** Core recovery environment and UI framework.
+- **Android Open Source Project (AOSP):** Virtual A/B and libdm infrastructure.
+
 ## Source integrity
 
 The build workflow verifies:
