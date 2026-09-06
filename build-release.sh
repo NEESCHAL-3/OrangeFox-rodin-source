@@ -1,10 +1,23 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
-ROOT="/mnt/rodin-build"
-FOX="$ROOT/fox_14.1"
-REPO="$ROOT/OrangeFox-rodin-source"
-RECOVERY="$FOX/bootable/recovery"
-PRODUCT_OUT="$FOX/out/target/product/rodin"
+REPO="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+
+if [[ -n "${ORANGEFOX_TOP:-}" ]]; then
+    FOX="$(cd -- "${ORANGEFOX_TOP}" && pwd -P)"
+elif [[ -n "${RODIN_TOP_DIR:-}" ]]; then
+    FOX="$(cd -- "${RODIN_TOP_DIR}" && pwd -P)"
+elif [[ -f "${REPO}/../fox_14.1/build/envsetup.sh" ]]; then
+    FOX="$(cd -- "${REPO}/../fox_14.1" && pwd -P)"
+else
+    echo "ERROR: OrangeFox 14.1 source tree not found." >&2
+    echo "Place this repository beside fox_14.1 or set:" >&2
+    echo "  ORANGEFOX_TOP=/path/to/fox_14.1" >&2
+    exit 1
+fi
+
+RECOVERY="${FOX}/bootable/recovery"
+PRODUCT_OUT="${FOX}/out/target/product/rodin"
 
 STAMP="$(date +%Y%m%d-%H%M%S)"
 FREEZE="$REPO/build-freezes/$STAMP"
@@ -13,7 +26,16 @@ echo "============================================================"
 echo " RODIN ORANGEFOX — FINAL RELEASE BUILD"
 echo "============================================================"
 echo
+echo "Device source:"
+echo "  ${REPO}"
+echo "OrangeFox tree:"
+echo "  ${FOX}"
+echo
 
+echo "===== APPLY COMPLETE RODIN PATCH STACK ====="
+"${REPO}/tools/apply-orangefox-patches.sh" "${FOX}"
+
+echo
 echo "===== FREEZE CURRENT WORK ====="
 mkdir -p "$FREEZE"
 

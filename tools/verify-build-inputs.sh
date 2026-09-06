@@ -248,10 +248,16 @@ if [[ -f "${DEVICE_DIR}/manifests/device-blobs.sha256" ]] && \
     fail "one or more device blobs differ from manifests/device-blobs.sha256"
 fi
 
+if [[ -f "${DEVICE_DIR}/PATCHSET-RECOVERY-OTA.sha256" ]] && \
+        ! (cd "${DEVICE_DIR}" && sha256sum --check --quiet PATCHSET-RECOVERY-OTA.sha256); then
+    fail "one or more proven recovery OTA patches differ from PATCHSET-RECOVERY-OTA.sha256"
+fi
+
 for script in \
     "${DEVICE_DIR}/build-lowmem.sh" \
     "${DEVICE_DIR}/fox_callback.sh" \
     "${DEVICE_DIR}/tools/apply-orangefox-patches.sh" \
+    "${DEVICE_DIR}/tools/apply-runtime-fixes.sh" \
     "${DEVICE_DIR}/build-release.sh" \
     "${DEVICE_DIR}/tools/build-system-compatible-vendor-boot.sh" \
     "${DEVICE_DIR}/tools/build-vendorboot-variants.sh" \

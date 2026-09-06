@@ -51,6 +51,13 @@ apply_patch_once "${UPDATE_ENGINE_DIR}" "${UPDATE_ENGINE_PATCH}" "update_engine 
 apply_patch_once "${VOLD_DIR}" "${VOLD_PATCH}" "OrangeFox vold decryption support"
 apply_patch_once "${VENDOR_TWRP_DIR}" "${VENDOR_TWRP_PATCH}" "OrangeFox vendor/twrp configuration"
 
+# NEES_RUNTIME_FIXES
+#
+# Apply the proven recovery OTA / Virtual A/B fixes before source
+# verification so every build path validates the final source state.
+NEES_PATCH_TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+"$NEES_PATCH_TOOLS_DIR/apply-runtime-fixes.sh" "${TOP_DIR}" || exit 1
+
 ENGLISH_LANGUAGE="${RECOVERY_DIR}/gui/theme/common/languages/en.xml"
 
 if [[ ! -f "${ENGLISH_LANGUAGE}" ]]; then
@@ -64,7 +71,3 @@ fi
 
 "${DEVICE_DIR}/tools/verify-build-inputs.sh" "${TOP_DIR}"
 echo "OrangeFox rodin source patches and device inputs are ready"
-
-# NEES_RUNTIME_FIXES
-NEES_PATCH_TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-"$NEES_PATCH_TOOLS_DIR/apply-runtime-fixes.sh" "${ANDROID_BUILD_TOP:-$(pwd)}" || exit 1
