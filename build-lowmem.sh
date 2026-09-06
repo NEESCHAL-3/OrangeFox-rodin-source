@@ -3,12 +3,19 @@ set -euo pipefail
 
 DEVICE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 
-if [ -n "${ORANGEFOX_TOP:-}" ]; then
-    TOP_DIR="${ORANGEFOX_TOP}"
-elif [ -f "${DEVICE_DIR}/../fox_14.1/build/envsetup.sh" ]; then
-    TOP_DIR="${RODIN_TOP_DIR:-$(cd -- "${DEVICE_DIR}/../fox_14.1" && pwd -P)}"
+if [[ -n "${ORANGEFOX_TOP:-}" ]]; then
+    TOP_DIR="$(cd -- "${ORANGEFOX_TOP}" && pwd -P)"
+elif [[ -n "${RODIN_TOP_DIR:-}" ]]; then
+    TOP_DIR="$(cd -- "${RODIN_TOP_DIR}" && pwd -P)"
+elif [[ -f "${DEVICE_DIR}/../../../build/envsetup.sh" ]]; then
+    TOP_DIR="$(cd -- "${DEVICE_DIR}/../../.." && pwd -P)"
+elif [[ -f "${DEVICE_DIR}/../fox_14.1/build/envsetup.sh" ]]; then
+    TOP_DIR="$(cd -- "${DEVICE_DIR}/../fox_14.1" && pwd -P)"
 else
-    TOP_DIR="${HOME}/fox_14.1"
+    echo "ERROR: OrangeFox 14.1 source tree not found." >&2
+    echo "Place this repository at device/xiaomi/rodin inside the OrangeFox tree," >&2
+    echo "keep it beside fox_14.1, or set ORANGEFOX_TOP." >&2
+    exit 1
 fi
 
 if [ ! -f "${TOP_DIR}/build/envsetup.sh" ]; then
@@ -98,7 +105,8 @@ set -e
 
 if [ "${status}" -ne 0 ]; then
     echo "build failed; see ${LOG_FILE}" >&2
-elif printf ' %s ' "${TARGETS[*]}" | grep -q ' vendorbootimage '; then
+elif [ "${RODIN_SKIP_POST_REPACK:-0}" != "1" ] && \
+        printf ' %s ' "${TARGETS[*]}" | grep -q ' vendorbootimage '; then
     if ! "${DEVICE_DIR}/tools/build-system-compatible-vendor-boot.sh"; then
         echo "system-compatible vendor_boot repack failed" >&2
         status=1

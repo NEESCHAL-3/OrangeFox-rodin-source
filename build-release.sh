@@ -102,7 +102,7 @@ fi
 
 echo
 echo "===== COMPILE ORANGEFOX ====="
-"$REPO/build-lowmem.sh" vendorbootimage
+RODIN_SKIP_POST_REPACK=1 "$REPO/build-lowmem.sh" vendorbootimage
 rc=$?
 
 if [ "$rc" -ne 0 ]; then

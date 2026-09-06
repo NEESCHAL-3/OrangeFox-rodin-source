@@ -2,7 +2,22 @@
 set -euo pipefail
 
 DEVICE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
-TOP_DIR="${1:-${RODIN_TOP_DIR:-$(cd -- "${DEVICE_DIR}/../fox_14.1" && pwd -P)}}"
+if [[ -n "${1:-}" ]]; then
+    TOP_DIR="$(cd -- "$1" && pwd -P)"
+elif [[ -n "${ORANGEFOX_TOP:-}" ]]; then
+    TOP_DIR="$(cd -- "${ORANGEFOX_TOP}" && pwd -P)"
+elif [[ -n "${RODIN_TOP_DIR:-}" ]]; then
+    TOP_DIR="$(cd -- "${RODIN_TOP_DIR}" && pwd -P)"
+elif [[ -f "${DEVICE_DIR}/../../../build/envsetup.sh" ]]; then
+    TOP_DIR="$(cd -- "${DEVICE_DIR}/../../.." && pwd -P)"
+elif [[ -f "${DEVICE_DIR}/../fox_14.1/build/envsetup.sh" ]]; then
+    TOP_DIR="$(cd -- "${DEVICE_DIR}/../fox_14.1" && pwd -P)"
+else
+    echo "ERROR: OrangeFox 14.1 source tree not found." >&2
+    echo "Place this repository at device/xiaomi/rodin inside the OrangeFox tree," >&2
+    echo "keep it beside fox_14.1, or set ORANGEFOX_TOP." >&2
+    exit 1
+fi
 RECOVERY_DIR="${TOP_DIR}/bootable/recovery"
 BUILD_DIR="${TOP_DIR}/build/make"
 HARDWARE_INTERFACES_DIR="${TOP_DIR}/hardware/interfaces"
