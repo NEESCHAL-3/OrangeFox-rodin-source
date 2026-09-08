@@ -27,6 +27,7 @@ VOLD_DIR="${TOP_DIR}/system/vold"
 VENDOR_TWRP_DIR="${TOP_DIR}/vendor/twrp"
 
 RECOVERY_PATCH="${DEVICE_DIR}/patches/bootable-recovery/rodin-complete.patch"
+RECOVERY_AUTO_REFLASH_PATCH="${DEVICE_DIR}/patches/bootable-recovery/0008-recovery-reliably-reflash-OrangeFox-after-AB-ROM.patch"
 BUILD_PATCH="${DEVICE_DIR}/patches/build-make/rodin-complete.patch"
 BOOTCONTROL_PATCH="${DEVICE_DIR}/patches/hardware-interfaces/rodin-fastbootd-bootcontrol-nonblocking.patch"
 FASTBOOTD_PATCH="${DEVICE_DIR}/patches/system-core/rodin-fastbootd-optional-hals-nonblocking.patch"
@@ -81,6 +82,8 @@ if recovery_complete_markers_present; then
 else
     apply_patch_once "${RECOVERY_DIR}" "${RECOVERY_PATCH}" "OrangeFox recovery"
 fi
+
+apply_patch_once "${RECOVERY_DIR}" "${RECOVERY_AUTO_REFLASH_PATCH}" "OrangeFox A/B auto-reflash"
 
 apply_patch_once "${UPDATE_ENGINE_DIR}" "${UPDATE_ENGINE_PATCH}" "update_engine A/B recovery support"
 apply_patch_once "${VOLD_DIR}" "${VOLD_PATCH}" "OrangeFox vold decryption support"

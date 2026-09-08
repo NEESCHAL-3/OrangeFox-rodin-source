@@ -1,0 +1,39 @@
+diff --git a/orangefox.cpp b/orangefox.cpp
+index e5c7ff50..c629a2f1 100644
+--- a/orangefox.cpp
++++ b/orangefox.cpp
+@@ -645,7 +645,6 @@ int Fox_Prepare_Update_Binary(const char *path, ZipArchiveHandle Zip)
+   TWFunc::Fox_Property_Set("found_fox_overwriting_rom", "");
+   DataManager::SetValue("found_non_standard_vAB_install", "0");
+ #ifdef AB_OTA_UPDATER
+-  TWFunc::IsRecoveryOverwritten(true);
+ #endif
+ 
+   if (TWFunc::Block_Operations_Until_Reboot())
+@@ -1113,10 +1112,14 @@ void Fox_Post_Zip_Install(const int result)
+ 	#endif
+ 	//---- Virtual A/B compensations ---- //
+ #ifdef AB_OTA_UPDATER
+-	if (DataManager::GetIntValue(TW_AUTO_REFLASHTWRP_VAR) && TWFunc::IsRecoveryOverwritten()) {
++	if (DataManager::GetIntValue(TW_AUTO_REFLASHTWRP_VAR)) {
+ 		twrpRepacker repacker;
+-		repacker.Flash_Current_Twrp();
+-		TWFunc::IsRecoveryOverwritten(true);
++		if (!repacker.Flash_Current_Twrp()) {
++			gui_print_color(
++				"error",
++				"OrangeFox auto-reflash failed.\n");
++			DataManager::SetValue(FOX_DISABLE_FORCED_ENCRYPTION, 0);
++		}
+ 	}
+ #endif
+          PartitionManager.Update_System_Details();
+@@ -1130,7 +1133,7 @@ void Fox_Post_Zip_Install(const int result)
+ 		if (!rodin_auto_dfe.Patch_Rodin_Auto_DFE(false)) {
+ 			gui_print_color(
+ 				"warning",
+-				"Auto-DFE failed. Target vendor_boot was not left partially patched.\\n");
++				"Auto-DFE failed. Target vendor_boot was not left partially patched.\n");
+ 		}
+ 	}
+ #endif
