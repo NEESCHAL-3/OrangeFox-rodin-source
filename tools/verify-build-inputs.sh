@@ -132,31 +132,31 @@ PYXML
     rm -f "${filtered_manifest}"
 
     check_revision "${TOP_DIR}/bootable/recovery" \
-        15587c4fe7fbfff2825ec7ba8754066949060e15 \
+        9860b87c823039b7950a4dee4e945d587ec0a9b0 \
         "patched bootable/recovery"
 
     check_revision "${TOP_DIR}/hardware/interfaces" \
-        61f0bcd25bdbf2b6d4d978fdfa348bf01078a8f8 \
+        a155fffda456a650c3b89c5d13092172446782a8 \
         "patched hardware/interfaces"
 
     check_revision "${TOP_DIR}/system/core" \
-        f16d1d3fdd463571601dd01d526643cd0230aa43 \
+        e0d64d1f938a62371189d65663bf59708538ee7d \
         "patched system/core"
 
     check_revision "${TOP_DIR}/build/make" \
-        927c3001c92c44ffd3f2b9c76ea140f23226d931 \
+        506df226dd003a364916b6b3ee1eb3bf9064f97f \
         "patched build/make"
 
     check_revision "${TOP_DIR}/system/update_engine" \
-        41d967c9c323f74f7c803189e494da4c6b379217 \
+        14f6fac900fb4b242be7bb68ff778e0d97c33829 \
         "patched system/update_engine"
 
     check_revision "${TOP_DIR}/system/vold" \
-        e4a15a6f99e6c5c1fb2945e7be34b39aab5e7c40 \
+        b865130d263a84d86440f6b8b9e1f08c6938d6a5 \
         "patched system/vold"
 
     check_revision "${TOP_DIR}/vendor/twrp" \
-        d7f3fe68cbb2997f888e6e807d44be1d50bcd42e \
+        c699fc6adfdeea786fd63626d8232a0f63dcc039 \
         "patched vendor/twrp"
 
     check_revision "${TOP_DIR}/vendor/recovery" \
