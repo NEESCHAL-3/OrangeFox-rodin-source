@@ -90,7 +90,7 @@ check_file "${DEVICE_DIR}/patches/system-core/rodin-fastbootd-optional-hals-nonb
 check_file "${DEVICE_DIR}/manifests/device-blobs.sha256"
 check_file "${DEVICE_DIR}/manifests/orangefox-fox_14.1-pinned.xml"
 check_sha256 "${DEVICE_DIR}/patches/build-make/rodin-complete.patch" 91f01d03733c66f54aa57be01eee4089efd37ec9c455618d1ef41e457ddbee36
-check_sha256 "${DEVICE_DIR}/patches/bootable-recovery/rodin-complete.patch" 4efbd2c20f562671a1b0d2b877ae689d723f7976f88c9e9e9c7261453df9ba31
+check_sha256 "${DEVICE_DIR}/patches/bootable-recovery/rodin-complete.patch" f3ef4b6e78c78e08e2d5e6f42a0873dd668688e4de2ec4d06087085c9bda42ab
 check_sha256 "${DEVICE_DIR}/patches/hardware-interfaces/rodin-fastbootd-bootcontrol-nonblocking.patch" e10f789766f359d5d4b91d2fa7ee8418d5c39694f7c914d5cc02c6aa533755b8
 check_sha256 "${DEVICE_DIR}/patches/system-core/rodin-fastbootd-optional-hals-nonblocking.patch" 740b10ad8cae477e8d387406b61594db869f83ab3fe0a15af46ec4ca6fc655e6
 check_sha256 "${DEVICE_DIR}/manifests/device-blobs.sha256" 1f85bc8a762e9ff773578e69557144e721bc96b64919f2a3f39d2e6cb1b3a2ae
