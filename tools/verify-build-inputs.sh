@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+VERIFY_STAGE="${1:-patched}"
+
 DEVICE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 if [[ -n "${1:-}" ]]; then
     TOP_DIR="$(cd -- "$1" && pwd -P)"
@@ -313,6 +315,8 @@ if [[ -d "${TOP_DIR}/bootable/recovery" ]]; then
     # Compare against origin/fox_14.1 without assuming where the font
     # variables live in the theme tree.
     #
+    if [[ "${VERIFY_STAGE}" == "clean" ]]; then
+
     stock_customization="$(mktemp "${TMPDIR:-/tmp}/rodin-stock-customization.XXXXXX")"
 
     if ! git -C "${TOP_DIR}/bootable/recovery" \
@@ -345,6 +349,8 @@ if [[ -d "${TOP_DIR}/bootable/recovery" ]]; then
     fi
 
     rm -f "${stock_customization}"
+
+    fi
 fi
 
 if ! grep -q '\[ -n "$input" \]' \

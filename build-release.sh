@@ -39,7 +39,10 @@ echo "  ${FOX}"
 echo
 
 echo "===== APPLY COMPLETE RODIN PATCH STACK ====="
-"${REPO}/tools/apply-orangefox-patches.sh" "${FOX}"
+"${REPO}/tools/echo "===== CLEAN SOURCE VALIDATION ====="
+./tools/verify-build-inputs.sh clean
+
+apply-orangefox-patches.sh" "${FOX}"
 
 echo
 echo "===== FREEZE CURRENT WORK ====="
