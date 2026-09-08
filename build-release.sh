@@ -38,7 +38,6 @@ echo "OrangeFox tree:"
 echo "  ${FOX}"
 echo
 
-echo "===== APPLY COMPLETE RODIN PATCH STACK ====="
 echo "===== CLEAN SOURCE VALIDATION ====="
 "${REPO}/tools/verify-build-inputs.sh" clean
 
