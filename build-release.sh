@@ -39,7 +39,7 @@ echo "  ${FOX}"
 echo
 
 echo "===== CLEAN SOURCE VALIDATION ====="
-"${REPO}/tools/verify-build-inputs.sh" clean
+RODIN_VERIFY_STAGE=clean "${REPO}/tools/verify-build-inputs.sh" "${FOX}"
 
 echo "===== APPLY COMPLETE RODIN PATCH STACK ====="
 "${REPO}/tools/apply-orangefox-patches.sh" "${FOX}"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERIFY_STAGE="${1:-patched}"
+VERIFY_STAGE="${RODIN_VERIFY_STAGE:-patched}"
 
 DEVICE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 if [[ -n "${1:-}" ]]; then
