@@ -95,7 +95,7 @@ echo
 
 echo "===== VERIFY BUILD INPUTS ====="
 if [ -x "$REPO/tools/verify-build-inputs.sh" ]; then
-    "$REPO/tools/verify-build-inputs.sh"
+    RODIN_VERIFY_STAGE=patched "${REPO}/tools/verify-build-inputs.sh" "${FOX}"
     rc=$?
     if [ "$rc" -ne 0 ]; then
         echo "ERROR: build input verification failed"
